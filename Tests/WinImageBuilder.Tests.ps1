@@ -242,6 +242,4 @@ Describe "Test New-WindowsOnlineImage" {
     It "should run all mocked commands" {
         Assert-VerifiableMock
     }
-
-    Remove-Item -Force -ErrorAction SilentlyContinue "${fakeConfigPath}.offline"
 }

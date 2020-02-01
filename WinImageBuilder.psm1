@@ -35,21 +35,6 @@ Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-Management-
 Don't forget to reboot after you install the Hyper-V role.
 "@
 
-$VirtIODrivers = @("balloon", "netkvm", "pvpanic", "qemupciserial", "qxl",
-             "qxldod", "vioinput", "viorng", "vioscsi", "vioserial", "viostor")
-
-$VirtIODriverMappings = @{
-    "2k8" = @(60, 1);
-    "2k8r2" = @(61, 1);
-    "w7" = @(61, 0);
-    "2k12" = @(62, 1);
-    "w8" = @(62, 0);
-    "2k12r2" = @(63, 1);
-    "w8.1" = @(63, 0);
-    "2k16" = @(100, 1);
-    "w10" = @(100, 0);
-}
-
 $AvailableCompressionFormats = @("tar","gz","zip")
 
 . "$scriptPath\Interop.ps1"
@@ -712,153 +697,6 @@ function Is-ServerInstallationType {
         [object]$image
     )
     return ($image.ImageInstallationType -in @("Server", "Server Core"))
-}
-
-function Get-VirtIODrivers {
-    Param(
-        [parameter(Mandatory=$true)]
-        [int]$MajorMinorVersion,
-        [parameter(Mandatory=$true)]
-        [int]$IsServer,
-        [parameter(Mandatory=$true)]
-        [string]$BasePath,
-        [parameter(Mandatory=$true)]
-        [string]$Architecture,
-        [parameter(Mandatory=$false)]
-        [int]$RecursionDepth = 0
-    )
-
-    Write-Log "Getting Virtual IO Drivers: $BasePath..."
-    $driverPaths = @()
-    foreach ($driver in $VirtioDrivers) {
-        foreach ($osVersion in $VirtIODriverMappings.Keys) {
-            $map = $VirtIODriverMappings[$osVersion]
-            if (!(($map[0] -eq $MajorMinorVersion) -and ($map[1] -eq $isServer))) {
-              continue
-            }
-            $driverPath = "{0}\{1}\{2}\{3}" -f @($basePath,
-                                                 $driver,
-                                                 $osVersion,
-                                                 $architecture)
-            if (Test-Path $driverPath) {
-                $driverPaths += $driverPath
-                break
-            }
-        }
-    }
-    if (!$driverPaths -and $RecursionDepth -lt 1) {
-        # Note(avladu): Fallback to 2012r2/w8.1 if no drivers are found
-        $driverPaths = Get-VirtIODrivers -MajorMinorVersion 63 -IsServer $IsServer `
-            -BasePath $BasePath -Architecture $Architecture -RecursionDepth 1
-    }
-    return $driverPaths
-    Write-Log "Finished to get IO Drivers."
-}
-
-function Add-VirtIODrivers {
-    Param(
-        [parameter(Mandatory=$true)]
-        [string]$vhdDriveLetter,
-        [parameter(Mandatory=$true)]
-        [object]$image,
-        [parameter(Mandatory=$true)]
-        [string]$driversBasePath
-    )
-
-    Write-Log "Adding Virtual IO Drivers: $driversBasePath..."
-    # For VirtIO ISO with drivers version lower than 1.8.x
-    if ($image.ImageVersion.Major -eq 6 -and $image.ImageVersion.Minor -eq 0) {
-        $virtioVer = "VISTA"
-    } elseif ($image.ImageVersion.Major -eq 6 -and $image.ImageVersion.Minor -eq 1) {
-        $virtioVer = "WIN7"
-    } elseif ($image.ImageVersion.Major -eq 6 -and $image.ImageVersion.Minor -ge 2) {
-        $virtioVer = "WIN8"
-    } elseif (($image.ImageVersion.Major -eq 10 -and $image.ImageVersion.Minor -eq 0) `
-        -or $image.ImageVersion.Major -gt 10) {
-        $virtioVer = "w10"
-    } else {
-        throw "Unsupported Windows version for VirtIO drivers: {0}" `
-            -f $image.ImageVersion
-    }
-    $virtioDir = "{0}\{1}\{2}" -f $driversBasePath, $virtioVer, $image.ImageArchitecture
-    if (Test-Path $virtioDir) {
-        Add-DriversToImage $vhdDriveLetter $virtioDir
-        return
-    }
-
-    # For VirtIO ISO with drivers version higher than 1.8.x
-    $majorMinorVersion = [string]$image.ImageVersion.Major + [string]$image.ImageVersion.Minor
-    $virtioDriversPaths = Get-VirtIODrivers -MajorMinorVersion $majorMinorVersion `
-        -IsServer ([int](Is-ServerInstallationType $image)) -BasePath $driversBasePath `
-        -Architecture $image.ImageArchitecture
-    foreach ($virtioDriversPath in $virtioDriversPaths) {
-        if (Test-Path $virtioDriversPath) {
-            Add-DriversToImage $vhdDriveLetter $virtioDriversPath
-        }
-    }
-    Write-Log "Virtual IO Drivers was added."
-}
-
-function Add-VirtIODriversFromISO {
-    <#
-    .SYNOPSIS
-     This function adds VirtIO drivers from a given ISO path to a mounted Windows VHD image.
-     The VirtIO ISO contains all the synthetic drivers for the KVM hypervisor.
-    .DESCRIPTION
-     This function takes the VirtIO drivers from a specified ISO file and installs them into the
-     given VHD, based on the characteristics given by the image parameter (which contains the
-     image version, image architecture and installation type).
-     More info can be found here: https://fedoraproject.org/wiki/Windows_Virtio_Drivers
-    .PARAMETER VHDDriveLetter
-     The drive letter of the mounted Windows VHD image.
-    .PARAMETER Image
-     The exact flavor of Windows installed on that image, so that the supported VirtIO drivers
-     can be installed.
-    .PARAMETER ISOPath
-     The full path of the VirtIO ISO file containing the drivers.
-    #>
-    Param(
-        [parameter(Mandatory=$true)]
-        [string]$vhdDriveLetter,
-        [parameter(Mandatory=$true)]
-        [object]$image,
-        [parameter(Mandatory=$true)]
-        [string]$isoPath
-    )
-    Write-Log "Adding Virtual IO Drivers from ISO: $isoPath..."
-    $v = [WIMInterop.VirtualDisk]::OpenVirtualDisk($isoPath)
-    try {
-        if (Is-IsoFile $isoPath) {
-            $v.AttachVirtualDisk()
-            # We call Get-PSDrive to refresh the list of active drives.
-            # Otherwise, "Test-Path $driversBasePath" will return $False
-            # http://www.vistax64.com/powershell/2653-powershell-does-not-update-subst-mapped-drives.html
-            Get-PSDrive | Out-Null
-            $devicePath = $v.GetVirtualDiskPhysicalPath()
-            $driversBasePath = Execute-Retry {
-                $res = (Get-DiskImage -DevicePath $devicePath `
-                    | Get-Volume).DriveLetter
-                if (!$res) {
-                    throw "Failed to mount ISO ${isoPath}"
-                }
-                return $res
-            }
-            $driversBasePath += ":"
-            Write-Log "Adding drivers from $driversBasePath"
-            Add-VirtIODrivers -vhdDriveLetter $vhdDriveLetter -image $image `
-                -driversBasePath $driversBasePath
-        } else {
-            throw "The $isoPath is not a valid iso path."
-        }
-    } catch{
-        throw $_
-    } finally {
-        if ($v) {
-            $v.DetachVirtualDisk()
-            $v.Close()
-        }
-    }
-    Write-Log "ISO Virtual Drivers have been adeed."
 }
 
 function Set-DotNetCWD {
@@ -1591,15 +1429,13 @@ function New-WindowsCloudImage {
         $windowsImageConfig = Get-WindowsImageConfig -ConfigFilePath $ConfigFilePath
         $mountedWindowsIso = $null
         if ($windowsImageConfig.wim_file_path.EndsWith('.iso')) {
-            $windowsImageConfig.wim_file_path = Get-Command $windowsImageConfig.wim_file_path `
-                -ErrorAction Ignore | Select-Object -ExpandProperty Source
+            $windowsImageConfig.wim_file_path = get-command $windowsImageConfig.wim_file_path -erroraction ignore `
+                | Select-Object -ExpandProperty Source
             if($windowsImageConfig.wim_file_path -eq $null){
-                throw ("Unable to find source iso. Either specify the full path or add " + `
-                       "the folder containing the iso to the path variable")
+                throw ("Unable to find source iso. Either specify the full path or add the folder containing the iso to the path variable")
             }
             $mountedWindowsIso = [WIMInterop.VirtualDisk]::OpenVirtualDisk($windowsImageConfig.wim_file_path)
             $mountedWindowsIso.AttachVirtualDisk()
-            Get-PSDrive | Out-Null
             $devicePath = $mountedWindowsIso.GetVirtualDiskPhysicalPath()
             $basePath = ((Get-DiskImage -DevicePath $devicePath `
                     | Get-Volume).DriveLetter) + ":"
@@ -1674,14 +1510,6 @@ function New-WindowsCloudImage {
 
             if ($windowsImageConfig.drivers_path -and (Test-Path $windowsImageConfig.drivers_path)) {
                 Add-DriversToImage $winImagePath $windowsImageConfig.drivers_path
-            }
-            if ($windowsImageConfig.virtio_iso_path) {
-                Add-VirtIODriversFromISO -vhdDriveLetter $winImagePath -image $image `
-                    -isoPath $windowsImageConfig.virtio_iso_path
-            }
-            if ($windowsImageConfig.virtio_base_path) {
-                Add-VirtIODrivers -vhdDriveLetter $winImagePath -image $image `
-                    -driversBasePath $windowsImageConfig.virtio_base_path
             }
             if ($windowsImageConfig.extra_features) {
                 Enable-FeaturesInImage $winImagePath $windowsImageConfig.extra_features
@@ -1812,10 +1640,6 @@ function New-WindowsFromGoldenImage {
             Write-Log "Partition has already the desired size"
         }
         $imageInfo = Get-ImageInformation $driveLetterGold -ImageName $windowsImageConfig.image_name
-        if ($windowsImageConfig.virtio_iso_path) {
-            Add-VirtIODriversFromISO -vhdDriveLetter $driveLetterGold -image $imageInfo `
-                -isoPath $windowsImageConfig.virtio_iso_path
-        }
 
         if ($windowsImageConfig.drivers_path -and (Test-Path $windowsImageConfig.drivers_path)) {
             Add-DriversToImage $driveLetterGold $windowsImageConfig.drivers_path
@@ -2061,18 +1885,11 @@ function Test-OfflineWindowsImage {
             }
 
             # Test if extra drivers are installed
-            if ($windowsImageConfig.virtio_iso_path -or $windowsImageConfig.virtio_base_path `
-                    -or $windowsImageConfig.drivers_path) {
+            if ($windowsImageConfig.drivers_path) {
                 $dismDriversOutput = (& Dism.exe /image:$mountPoint /Get-Drivers /Format:Table)
                 $allDrivers = (Select-String "oem" -InputObject $dismDriversOutput -AllMatches).Matches.Count
-                $virtDrivers = (Select-String "Red Hat, Inc." -InputObject $dismDriversOutput -AllMatches).Matches.Count
-                $virtDrivers += (Select-String "QEMU" -InputObject $dismDriversOutput `
-                    -AllMatches -CaseSensitive).Matches.Count
-                Write-Log "Found ${allDrivers} drivers, from which ${virtDrivers} are VirtIO drivers."
+                Write-Log "Found ${allDrivers} driversdrivers."
                 $minDriversCount = 1
-                if ($windowsImageConfig.virtio_iso_path -or $windowsImageConfig.virtio_base_path) {
-                    $minDriversCount = $VirtIODrivers.Count - 1 + ($allDrivers - $virtDrivers)
-                }
                 if ($allDrivers -lt $minDriversCount) {
                     throw "Expected ${minDriversCount} ! >= ${allDrivers} drivers installed on the image."
                 }
@@ -2094,5 +1911,5 @@ function Test-OfflineWindowsImage {
 
 
 Export-ModuleMember New-WindowsCloudImage, Get-WimFileImagesInfo, New-MaaSImage, Resize-VHDImage,
-    New-WindowsOnlineImage, Add-VirtIODriversFromISO, New-WindowsFromGoldenImage, Get-WindowsImageConfig,
+    New-WindowsOnlineImage, New-WindowsFromGoldenImage, Get-WindowsImageConfig,
     New-WindowsImageConfig, Test-OfflineWindowsImage

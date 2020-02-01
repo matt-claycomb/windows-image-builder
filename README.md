@@ -1,4 +1,4 @@
-Windows Imaging Tools
+.Windows Imaging Tools
 ===============================
 [![Master branch](https://ci.appveyor.com/api/projects/status/github/cloudbase/windows-openstack-imaging-tools?branch=master&svg=true)](https://ci.appveyor.com/project/ader1990/windows-openstack-imaging-tools-w885m)
 
@@ -102,8 +102,6 @@ in `Examples/create-windows-online-cloud-image.ps1`
 
 ### I booted an instance with the image and I got a BSOD
   * This is the most common scenario that one can encounter and it is easily fixable.
-  * If you boot on KVM hypervisor, make sure that you configure the correct path for the ISO/folder with VirtIO drivers.<br/>
-  The configuration options are `virtio_iso_path` and `virtio_base_path`.
   * On the KVM hypervisor side, make sure you start the KVM vm process with the `--enable-kvm` flag.
   * If you boot on a baremetal machine, make sure that either the basic Windows installation has the storage drivers builtin<br/>
   or that you specify the proper path to drivers folder for the `drivers_path` configuration option.

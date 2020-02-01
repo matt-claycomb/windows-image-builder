@@ -27,7 +27,6 @@ The steps to create an image that has to be instantiated on a hypervisor before 
   8. Customization:
       * Enable extra features or capabilites
       * Add extra packages
-      * Apply VirtIO drivers from Fedora or other drivers
   9. Unmount VHD and convert it to the desired disk format
   10. Compress the image file
 

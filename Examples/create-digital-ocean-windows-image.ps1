@@ -62,14 +62,6 @@ if (!(Test-Path $wimFilePath)) {
     throw "Windows wim path ${wimFilePath} does not exist."
 }
 
-# VirtIO ISO contains all the synthetic drivers for the KVM hypervisor
-$virtIOISOPath = Join-Path $BaseImageDir "virtio.iso"
-$virtIODownloadLink = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.160-1/virtio-win-0.1.160.iso"
-
-# Download the VirtIO drivers ISO from Fedora
-Write-Host "Downloading ${virtIODownloadLink} to ${virtIOISOPath}"
-(New-Object System.Net.WebClient).DownloadFile($virtIODownloadLink, $virtIOISOPath)
-
 # Every Windows ISO can contain multiple Windows flavors like Core, Standard, Datacenter
 # Usually, the first image version is the Core or Home one
 $image = (Get-WimFileImagesInfo -WimFilePath $wimFilePath)[0]
@@ -85,7 +77,6 @@ Set-IniFileValue -Path $configFilePath -Section "Default" -Key "image_name" -Val
 Set-IniFileValue -Path $configFilePath -Section "Default" -Key "image_path" -Value $windowsImagePath
 Set-IniFileValue -Path $configFilePath -Section "Default" -Key "image_type" -Value "HYPERV"
 Set-IniFileValue -Path $configFilePath -Section "Default" -Key "compression_format" -Value "gz"
-Set-IniFileValue -Path $configFilePath -Section "drivers" -Key "virtio_iso_path" -Value $virtIOISOPath
 Set-IniFileValue -Path $configFilePath -Section "updates" -Key "install_updates" -Value "True"
 Set-IniFileValue -Path $configFilePath -Section "updates" -Key "purge_updates" -Value "True"
 Set-IniFileValue -Path $configFilePath -Section "sysprep" -Key "disable_swap" -Value "True"

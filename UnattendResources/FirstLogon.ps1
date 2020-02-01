@@ -28,7 +28,7 @@ try
         }
         "KVMKVMKVM"
         {
-            # Nothing to do as VirtIO drivers have already been provisioned
+            # Nothing to do
         }
         "Microsoft Hv"
         {

@@ -25,7 +25,7 @@
 RootModule = 'WinImageBuilder.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.0'
+ModuleVersion = '0.1'
 
 # ID used to uniquely identify this module
 GUID = '6a64b662-7f53-425a-9777-ee61284407da'
@@ -46,13 +46,14 @@ Description = 'Powershell module to automate Windows image generation for OpenSt
 PowerShellVersion = '4.0'
 
 # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
-NestedModules = @("WindowsImageConfig.psd1")
+NestedModules = @("Config.psm1", "UnattendResources\ini.psm1")
+
+# List of all modules packaged with this module
+ModuleList = @("Config.psm1", "UnattendResources\ini.psm1")
 
 # Functions to export from this module
-FunctionsToExport = @("New-WindowsCloudImage", "New-WindowsOnlineImage", "New-WindowsFromGoldenImage",
-     "Get-WindowsImageConfig", "New-WindowsImageConfig", "Test-OfflineWindowsImage")
-
+FunctionsToExport = "New-WindowsCloudImage", "New-WindowsOnlineImage", "New-WindowsFromGoldenImage",
+     "Get-WindowsImageConfig", "New-WindowsImageConfig", "Test-OfflineWindowsImage"
 
 AliasesToExport = ""
 }
-

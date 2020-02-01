@@ -35,8 +35,7 @@ function Get-AvailableConfigOptions {
                            For HYPER-V, cloudbase-init will be installed and the generated image should be in vhd or vhdx format.
                            For MAAS, in addition to cloudbase-init, the curtin tools are installed
                            and the generated image should be in raw.tgz format.
-                           For KVM, in addition to cloudbase-init, the VirtIO drivers are installed
-                           and the generated image should be in qcow2 format."},
+                           For KVM, in addition to cloudbase-init, the generated image should be in qcow2 format."},
         @{"Name" = "disk_layout"; "DefaultValue" = "BIOS";
           "Description" = "This parameter can be set to either BIOS or UEFI."},
         @{"Name" = "product_key";
@@ -104,11 +103,6 @@ function Get-AvailableConfigOptions {
           "Description" = "Disk space (in bytes) assigned to the boot disk for the VM used to generate the image."},
         @{"Name" = "shrink_image_to_minimum_size"; "DefaultValue" = $true; "AsBoolean" = $true
           "Description" = "Whether to shrink the image partition and disk after the image generation is complete."},
-        @{"Name" = "virtio_iso_path"; "GroupName" = "drivers";
-          "Description" = "The path to the ISO file containing the VirtIO drivers."},
-        @{"Name" = "virtio_base_path"; "GroupName" = "drivers";
-          "Description" = "The location where the VirtIO drivers are found.
-                           For example, the location of a mounted VirtIO ISO. VirtIO versions supported >=0.1.6.x"},
         @{"Name" = "drivers_path"; "GroupName" = "drivers";
           "Description" = "The location where additional drivers that are needed for the image are located."},
         @{"Name" = "install_updates"; "GroupName" = "updates"; "DefaultValue" = $false; "AsBoolean" = $true;
