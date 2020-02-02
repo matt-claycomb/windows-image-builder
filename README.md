@@ -1,6 +1,7 @@
-.Windows Imaging Tools
+Windows Imaging Tools
 ===============================
-[![Master branch](https://ci.appveyor.com/api/projects/status/github/cloudbase/windows-openstack-imaging-tools?branch=master&svg=true)](https://ci.appveyor.com/project/ader1990/windows-openstack-imaging-tools-w885m)
+
+# NOTE: This is a WIP fork of https://github.com/cloudbase/windows-openstack-imaging-tools/ which I am trimming down and changing some.
 
 Windows Imaging Tools automates the generation of Windows images.<br/>
 The tools are a bundle of PowerShell modules and scripts.
@@ -63,9 +64,6 @@ This command does not require Hyper-V to be enabled, but the generated image<br/
 is not ready to be deployed, as it needs to be started manually on another hypervisor.<br/>
 The image is ready to be used when it shuts down.
 
-You can find a PowerShell example to generate a raw OpenStack Ironic image that also works on KVM<br/>
-in `Examples/create-windows-cloud-image.ps1`
-
 ### New-WindowsOnlineImage
 This command requires Hyper-V to be enabled, a VMSwitch to be configured for external<br/>
 network connectivity if the updates are to be installed, which is highly recommended.
@@ -73,6 +71,3 @@ network connectivity if the updates are to be installed, which is highly recomme
 This command uses internally the `New-WindowsCloudImage` to generate the base image and<br/>
 start a Hyper-V instance using the base image. After the Hyper-V instance shuts down, <br/>
 the resulting VHDX is shrinked to a minimum size and converted to the required format.
-
-You can find a PowerShell example to generate a raw OpenStack Ironic image that also works on KVM<br/>
-in `Examples/create-windows-online-cloud-image.ps1`
