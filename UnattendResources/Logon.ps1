@@ -284,24 +284,6 @@ function Get-AdministratorAccount {
     }
 }
 
-function Enable-AdministratorAccount {
-    [string]$username = Get-AdministratorAccount
-    $setupCompletePath = "$env:windir\Setup\Scripts\SetupComplete.cmd"
-    $activate = "powershell -c net user {0} /active:yes" -f $username
-    $expiration = 'wmic path Win32_UserAccount WHERE Name="{0}" set PasswordExpires=true' -f $username
-    $logonReset = "net.exe user {0} /logonpasswordchg:yes" -f $username
-    Add-Content -Encoding Ascii -Value $activate -Path $setupCompletePath
-    Add-Content -Encoding Ascii -Value $expiration -Path $setupCompletePath
-    Add-Content -Encoding Ascii -Value $logonReset -Path $setupCompletePath
-    & cmd.exe /c "net.exe user $username """
-    # Note(atira): net.exe can set an empty password only if it is run from cmd.exe
-    if ($LASTEXITCODE) {
-        Write-Log "Administrator" "Error: Account could not be enabled"
-        throw "Resetting $username password failed."
-    }
-    Write-Log "Administrator" "Account was enabled successfully"
-}
-
 function Is-WindowsClient {
         $Path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\\'
     try {
@@ -563,10 +545,6 @@ try {
 
     if ($enablePing) {
         Enable-PingFirewallRules
-    }
-
-    if ($windowsClient -and $enableAdministrator) {
-        Enable-AdministratorAccount
     }
 
     if ($enableAlwaysActiveMode) {
