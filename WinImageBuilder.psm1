@@ -129,9 +129,7 @@ function Create-ImageVirtualDisk {
         [parameter(Mandatory=$true)]
         [string]$VhdPath,
         [parameter(Mandatory=$true)]
-        [long]$Size,
-        [parameter(Mandatory=$true)]
-        [string]$DiskLayout
+        [long]$Size
     )
 
     Write-Log "Creating Virtual Disk Image: $VhdPath..."
@@ -144,30 +142,22 @@ function Create-ImageVirtualDisk {
         $diskNum = $Matches["num"]
         $volumeLabel = "OS"
 
-        if ($DiskLayout -eq "UEFI") {
-            Initialize-Disk -Number $diskNum -PartitionStyle GPT
-            # EFI partition
-            $systemPart = New-Partition -DiskNumber $diskNum -Size 200MB `
-                -GptType '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}' `
-                -AssignDriveLetter
-            & format.com "$($systemPart.DriveLetter):" /FS:FAT32 /Q /Y | Out-Null
-            if ($LASTEXITCODE) {
-                throw "Format failed"
-            }
-            # MSR partition
-            New-Partition -DiskNumber $diskNum -Size 128MB `
-                -GptType '{e3c9e316-0b5c-4db8-817d-f92df00215ae}' | Out-Null
-            # Windows partition
-            $windowsPart = New-Partition -DiskNumber $diskNum -UseMaximumSize `
-                -GptType "{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}" `
-                -AssignDriveLetter
-        } else {
-            # BIOS
-            Initialize-Disk -Number $diskNum -PartitionStyle MBR
-            $windowsPart = New-Partition -DiskNumber $diskNum -UseMaximumSize `
-                -AssignDriveLetter -IsActive
-            $systemPart = $windowsPart
-        }
+		Initialize-Disk -Number $diskNum -PartitionStyle GPT
+		# EFI partition
+		$systemPart = New-Partition -DiskNumber $diskNum -Size 200MB `
+			-GptType '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}' `
+			-AssignDriveLetter
+		& format.com "$($systemPart.DriveLetter):" /FS:FAT32 /Q /Y | Out-Null
+		if ($LASTEXITCODE) {
+			throw "Format failed"
+		}
+		# MSR partition
+		New-Partition -DiskNumber $diskNum -Size 128MB `
+			-GptType '{e3c9e316-0b5c-4db8-817d-f92df00215ae}' | Out-Null
+		# Windows partition
+		$windowsPart = New-Partition -DiskNumber $diskNum -UseMaximumSize `
+			-GptType "{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}" `
+			-AssignDriveLetter
 
         Format-Volume -DriveLetter $windowsPart.DriveLetter `
             -FileSystem NTFS -NewFileSystemLabel $volumeLabel `
@@ -196,45 +186,12 @@ function Apply-Image {
     if ($LASTEXITCODE) { throw "Dism apply-image failed" }
 }
 
-function Reset-BCDSearchOrder {
-    Param(
-        [parameter(Mandatory=$true)]
-        [string]$systemDrive,
-        [parameter(Mandatory=$true)]
-        [string]$windowsDrive,
-        [parameter(Mandatory=$true)]
-        [string]$diskLayout
-    )
-
-    if ($diskLayout -eq "BIOS") {
-        Write-Log "Resetting BCD boot border"
-        $ErrorActionPreference = "SilentlyContinue"
-        $bcdeditPath = "${windowsDrive}\windows\system32\bcdedit.exe"
-        if (!(Test-Path $bcdeditPath)) {
-            Write-Warning ('"{0}" not found, using online version' -f $bcdeditPath)
-            $bcdeditPath = "bcdedit.exe"
-        }
-
-        & $bcdeditPath /store ${systemDrive}\boot\BCD /set `{bootmgr`} device locate
-        if ($LASTEXITCODE) { Write-Warning "BCDEdit failed: bootmgr device locate" }
-
-        & $bcdeditPath /store ${systemDrive}\boot\BCD /set `{default`} device locate
-        if ($LASTEXITCODE) { Write-Warning "BCDEdit failed: default device locate" }
-
-        & $bcdeditPath /store ${systemDrive}\boot\BCD /set `{default`} osdevice locate
-        if ($LASTEXITCODE) { Write-Warning "BCDEdit failed: default osdevice locate" }
-        $ErrorActionPreference = "Stop"
-    }
-}
-
 function Create-BCDBootConfig {
     Param(
         [parameter(Mandatory=$true)]
         [string]$systemDrive,
         [parameter(Mandatory=$true)]
         [string]$windowsDrive,
-        [parameter(Mandatory=$true)]
-        [string]$diskLayout,
         [parameter(Mandatory=$true)]
         [object]$image
     )
@@ -255,18 +212,15 @@ function Create-BCDBootConfig {
        # when generating Win7 images on Win10 / Server 2k16 hosts
        if ($LASTEXITCODE) {
            Write-Log "Retrying with bcdboot.exe from host"
-           $bcdbootOutput = & $bcdbootLocalPath ${windowsDrive}\windows /s ${systemDrive} /v /f $diskLayout
+           $bcdbootOutput = & $bcdbootLocalPath ${windowsDrive}\windows /s ${systemDrive} /v /f UEFI
        }
     } else {
-       $bcdbootOutput = & $bcdbootPath ${windowsDrive}\windows /s ${systemDrive} /v /f $diskLayout
+       $bcdbootOutput = & $bcdbootPath ${windowsDrive}\windows /s ${systemDrive} /v /f UEFI
     }
     if ($LASTEXITCODE) {
         $ErrorActionPreference = "Stop"
         throw "BCDBoot failed with error: $bcdbootOutput"
     }
-
-    Reset-BCDSearchOrder -systemDrive $systemDrive -windowsDrive $windowsDrive `
-        -diskLayout $diskLayout
 
     $ErrorActionPreference = "Stop"
     Write-Log "BCDBoot config has been created."
@@ -710,14 +664,12 @@ function Run-Sysprep {
         [int]$CpuCores,
         [Parameter(Mandatory=$true)]
         [string]$VMSwitch,
-        [ValidateSet("1", "2")]
-        [string]$Generation = "1",
         [switch]$DisableSecureBoot
     )
 
     Write-Log "Creating VM $Name attached to $VMSwitch"
     New-VM -Name $Name -MemoryStartupBytes $Memory -SwitchName $VMSwitch `
-        -VhdPath $VhdPath -Generation $Generation | Out-Null
+        -VhdPath $VhdPath -Generation 2 | Out-Null
     Set-VMProcessor -VMname $Name -count $CpuCores | Out-Null
 
     Set-VMMemory -VMname $Name -DynamicMemoryEnabled:$false | Out-Null
@@ -730,7 +682,7 @@ function Run-Sysprep {
     if ($vmAutomaticCheckpointsEnabled) {
        Set-VM -VMName $Name -AutomaticCheckpointsEnabled:$false
     }
-    if ($DisableSecureBoot -and $Generation -eq "2") {
+    if ($DisableSecureBoot) {
          Set-VMFirmware -VMName $Name -EnableSecureBoot Off
     }
     Write-Log "Starting $Name"
@@ -1021,16 +973,10 @@ function New-WindowsOnlineImage {
         New-WindowsCloudImage -ConfigFilePath $offlineConfigFilePath
 
         if ($windowsImageConfig.run_sysprep) {
-            if($windowsImageConfig.disk_layout -eq "UEFI") {
-                $generation = "2"
-            } else {
-                $generation = "1"
-            }
-
             $Name = "WindowsOnlineImage-Sysprep" + (Get-Random)
             Run-Sysprep -Name $Name -Memory $windowsImageConfig.ram_size -vhdPath $virtualDiskPath `
                 -VMSwitch $switch.Name -CpuCores $windowsImageConfig.cpu_count `
-                -Generation $generation -DisableSecureBoot:$windowsImageConfig.disable_secure_boot
+                -DisableSecureBoot:$windowsImageConfig.disable_secure_boot
         }
 
         if ($windowsImageConfig.shrink_image_to_minimum_size -eq $true) {
@@ -1112,8 +1058,7 @@ function New-WindowsCloudImage {
         }
 
         try {
-            $drives = Create-ImageVirtualDisk -VhdPath $vhdPath -Size $windowsImageConfig.disk_size `
-                -DiskLayout $windowsImageConfig.disk_layout
+            $drives = Create-ImageVirtualDisk -VhdPath $vhdPath -Size $windowsImageConfig.disk_size
             $winImagePath = "$($drives[1])\"
             $resourcesDir = "${winImagePath}UnattendResources"
             $outUnattendXmlPath = "${winImagePath}Unattend.xml"
@@ -1144,8 +1089,7 @@ function New-WindowsCloudImage {
 
             Apply-Image -winImagePath $winImagePath -wimFilePath $windowsImageConfig.wim_file_path `
                 -imageIndex $image.ImageIndex
-            Create-BCDBootConfig -systemDrive $drives[0] -windowsDrive $drives[1] -diskLayout $windowsImageConfig.disk_layout `
-                -image $image
+            Create-BCDBootConfig -systemDrive $drives[0] -windowsDrive $drives[1] -image $image
             Check-EnablePowerShellInImage $winImagePath $image
 
             if ($windowsImageConfig.drivers_path -and (Test-Path $windowsImageConfig.drivers_path)) {
@@ -1277,8 +1221,6 @@ function New-WindowsFromGoldenImage {
         }
 
         $resourcesDir = Join-Path -Path $driveLetterGold -ChildPath "UnattendResources"
-        Reset-BCDSearchOrder -systemDrive $driveLetterGold -windowsDrive $driveLetterGold `
-            -diskLayout $windowsImageConfig.disk_layout
         Copy-UnattendResources -resourcesDir $resourcesDir -imageInstallationType $windowsImageConfig.image_name
         Copy-CustomResources -ResourcesDir $resourcesDir -CustomResources $windowsImageConfig.custom_resources_path `
                              -CustomScripts $windowsImageConfig.custom_scripts_path
@@ -1292,16 +1234,11 @@ function New-WindowsFromGoldenImage {
         Dismount-VHD -Path $windowsImageConfig.gold_image_path | Out-Null
 
         if ($windowsImageConfig.run_sysprep) {
-            if($windowsImageConfig.disk_layout -eq "UEFI") {
-                $generation = "2"
-            } else {
-                $generation = "1"
-            }
 
             $Name = "WindowsGoldImage-Sysprep" + (Get-Random)
             Run-Sysprep -Name $Name -Memory $windowsImageConfig.ram_size -vhdPath $windowsImageConfig.gold_image_path `
                 -VMSwitch $switch.Name -CpuCores $windowsImageConfig.cpu_count `
-                -Generation $generation -DisableSecureBoot:$windowsImageConfig.disable_secure_boot
+                -DisableSecureBoot:$windowsImageConfig.disable_secure_boot
         }
 
         if ($windowsImageConfig.shrink_image_to_minimum_size -eq $true) {
