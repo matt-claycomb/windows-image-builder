@@ -21,7 +21,6 @@ The steps to create an image that has to be instantiated on a hypervisor before 
       * Configuration file
       * Windows wallpaper GPO
       * zapfree
-      * cloudbase-init
   6. Expand the WIM file to the mount point
   7. Apply boot configuration according to the disk layout (BIOS or UEFI)
   8. Customization:

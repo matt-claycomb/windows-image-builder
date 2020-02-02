@@ -488,56 +488,6 @@ function Validate-WindowsImageConfig {
     }
 }
 
-function Download-CloudbaseInit {
-    Param(
-        [Parameter(Mandatory=$true)]
-        [string]$resourcesDir,
-        [Parameter(Mandatory=$true)]
-        [string]$osArch,
-        [parameter(Mandatory=$false)]
-        [switch]$BetaRelease,
-        [parameter(Mandatory=$false)]
-        [string]$MsiPath,
-        [string]$CloudbaseInitConfigPath,
-        [string]$CloudbaseInitUnattendedConfigPath
-    )
-    $CloudbaseInitMsiPath = "$resourcesDir\CloudbaseInit.msi"
-    if ($CloudbaseInitConfigPath) {
-        Write-Log "Copying Cloudbase-Init custom configuration file..."
-        Copy-Item -Force $CloudbaseInitConfigPath "$resourcesDir\cloudbase-init.conf"
-    }
-    if ($CloudbaseInitUnattendedConfigPath) {
-        Write-Log "Copying Cloudbase-Init custom unattended configuration file..."
-        Copy-Item -Force $CloudbaseInitUnattendedConfigPath `
-            "$resourcesDir\cloudbase-init-unattend.conf"
-    }
-
-    if ($MsiPath) {
-        if (!(Test-Path $MsiPath)) {
-            throw "Cloudbase-Init installer could not be copied. $MsiPath does not exist."
-        }
-        Write-Log "Copying Cloudbase-Init..."
-        Copy-Item $MsiPath $CloudbaseInitMsiPath
-        return
-    }
-    Write-Log "Downloading Cloudbase-Init..."
-    $msiBuildArchMap = @{
-        "amd64" = "x64"
-        "i386" = "x86"
-        "x86" = "x86"
-    }
-    $msiBuildSuffix = ""
-    if (-not $BetaRelease) {
-        $msiBuildSuffix = "_Stable"
-    }
-    $CloudbaseInitMsi = "CloudbaseInitSetup{0}_{1}.msi" -f @($msiBuildSuffix, $msiBuildArchMap[$osArch])
-    $CloudbaseInitMsiUrl = "https://www.cloudbase.it/downloads/$CloudbaseInitMsi"
-
-    Execute-Retry {
-        (New-Object System.Net.WebClient).DownloadFile($CloudbaseInitMsiUrl, $CloudbaseInitMsiPath)
-    }
-}
-
 function Download-ZapFree {
     Param(
         [Parameter(Mandatory=$true)]
@@ -1269,7 +1219,7 @@ function New-WindowsOnlineImage {
     <#
     .SYNOPSIS
      This function generates a Windows image using Hyper-V  to instantiate the image in
-     order to apply the updates and install cloudbase-init.
+     order to apply the updates.
     .DESCRIPTION
      This command requires Hyper-V to be enabled, a VMSwitch to be configured for external
      network connectivity if the updates are to be installed, which is highly recommended.
@@ -1408,7 +1358,7 @@ function New-WindowsCloudImage {
      This function creates a Windows Image, starting from an ISO file, without the need
      of Hyper-V to be enabled. The image, to become ready for cloud usage, needs to be
      started on a hypervisor and it will automatically shut down when it finishes all the
-     operations needed to become cloud ready: cloudbase-init installation, updates and sysprep.
+     operations needed to become cloud ready: updates and sysprep.
     .DESCRIPTION
      This script can generate a Windows Image in one of the following formats: VHD,
      VHDX, QCow2, VMDK or RAW. It takes the Windows flavor indicated by the ImageName
@@ -1498,10 +1448,7 @@ function New-WindowsCloudImage {
             if ($windowsImageConfig.zero_unused_volume_sectors) {
                 Download-ZapFree $resourcesDir ([string]$image.ImageArchitecture)
             }
-            Download-CloudbaseInit -resourcesDir $resourcesDir -osArch ([string]$image.ImageArchitecture) `
-                                   -BetaRelease:$windowsImageConfig.beta_release -MsiPath $windowsImageConfig.msi_path `
-                                   -CloudbaseInitConfigPath $windowsImageConfig.cloudbase_init_config_path `
-                                   -CloudbaseInitUnattendedConfigPath $windowsImageConfig.cloudbase_init_unattended_config_path
+
             Apply-Image -winImagePath $winImagePath -wimFilePath $windowsImageConfig.wim_file_path `
                 -imageIndex $image.ImageIndex
             Create-BCDBootConfig -systemDrive $drives[0] -windowsDrive $drives[1] -diskLayout $windowsImageConfig.disk_layout `
@@ -1564,7 +1511,7 @@ function New-WindowsFromGoldenImage {
      This function creates a functional Windows Image, starting from an already
      generated golden image. It will be started on Hyper-V and it will automatically
      shut down when it finishes all the operations needed to become cloud ready:
-     cloudbase-init installation, updates and sysprep.
+     updates and sysprep.
     .DESCRIPTION
      This function can generated a cloud ready Windows image starting from a golden
      image. The resulting image can have the following formats: VHD,VHDX, QCow2,
@@ -1663,10 +1610,6 @@ function New-WindowsFromGoldenImage {
         if ($windowsImageConfig.zero_unused_volume_sectors) {
             Download-ZapFree $resourcesDir $imageInfo.imageArchitecture
         }
-        Download-CloudbaseInit -resourcesDir $resourcesDir -osArch $imageInfo.imageArchitecture `
-                               -BetaRelease:$windowsImageConfig.beta_release -MsiPath $windowsImageConfig.msi_path `
-                               -CloudbaseInitConfigPath $windowsImageConfig.cloudbase_init_config_path `
-                               -CloudbaseInitUnattendedConfigPath $windowsImageConfig.cloudbase_init_unattended_config_path
         Dismount-VHD -Path $windowsImageConfig.gold_image_path | Out-Null
 
         if ($windowsImageConfig.run_sysprep) {
@@ -1760,9 +1703,8 @@ function Test-OfflineWindowsImage {
      If any compression is detected, a decompression is performed for each compression.
      If the image format is other than vhdx, "qemu-img convert -O vhdx" is performed.
      The vhdx is mounted and the following checks are performed:
-       1. If Cloudbase-Init folder exists
-       2. If curtin (for MAAS) folder exists
-       3. If OEM drivers are installed
+       1. If curtin (for MAAS) folder exists
+       2. If OEM drivers are installed
      Finally, the full chain of decompressed/converted files is removed.
      #>
     [CmdletBinding()]
@@ -1864,16 +1806,6 @@ function Test-OfflineWindowsImage {
             Get-PSDrive | Out-Null
             $mountPoint = (Get-Partition -DiskNumber $driveNumber | `
                 Where-Object {@("Basic", "IFS") -contains $_.Type}).DriveLetter + ":"
-
-            # Test if Cloudbase-Init is installed
-            $cloudbaseInitPath = "Program Files\Cloudbase Solutions\Cloudbase-Init"
-            $cloudbaseInitPathX86 = "${cloudbaseInitPath} (x86)"
-            if ((Test-Path (Join-Path $mountPoint $cloudbaseInitPath)) -or `
-                (Test-Path (Join-Path $mountPoint $cloudbaseInitPathX86))) {
-                Write-Log "Cloudbase-Init is installed."
-            } else {
-                throw "Cloudbase-Init is not installed on the image."
-            }
 
             # Test if curtin modules are installed
             if ($windowsImageConfig.install_maas_hooks) {

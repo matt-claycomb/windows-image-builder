@@ -32,10 +32,9 @@ function Get-AvailableConfigOptions {
           "Description" = "Select between VHD, VHDX, QCOW2, VMDK or RAW formats."},
         @{"Name" = "image_type"; "DefaultValue" = "HYPER-V";
           "Description" = "This parameter allows to choose between MAAS, KVM, VMware and Hyper-V specific images.
-                           For HYPER-V, cloudbase-init will be installed and the generated image should be in vhd or vhdx format.
-                           For MAAS, in addition to cloudbase-init, the curtin tools are installed
-                           and the generated image should be in raw.tgz format.
-                           For KVM, in addition to cloudbase-init, the generated image should be in qcow2 format."},
+                           For HYPER-V, the generated image should be in vhd or vhdx format.
+                           For MAAS, the curtin tools are installed and the generated image should be in raw.tgz format.
+                           For KVM, the generated image should be in qcow2 format."},
         @{"Name" = "disk_layout"; "DefaultValue" = "BIOS";
           "Description" = "This parameter can be set to either BIOS or UEFI."},
         @{"Name" = "product_key";
@@ -79,8 +78,7 @@ function Get-AvailableConfigOptions {
                            The purpose of these scripts is to offer to the user a fully
                            customizable way of defining additional logic for tweaking the final image.
                            The scripts files can have the following names: RunBeforeWindowsUpdates.ps1,
-                           RunAfterWindowsUpdates.ps1, RunBeforeCloudbaseInitInstall.ps1, RunAfterCloudbaseInitInstall.ps1,
-                           RunBeforeSysprep.ps1, RunAfterSysprep.ps1.
+                           RunAfterWindowsUpdates.ps1, RunBeforeSysprep.ps1, RunAfterSysprep.ps1.
                            The script names contain the information on when the script will be executed.
                            One can define only some of the hook scripts and it is not mandatory to define all of them.
                            If a script does not exist, it will not be executed."},
@@ -125,25 +123,6 @@ function Get-AvailableConfigOptions {
           "Description" = "In case the hardware on which the image is generated will also be the hardware on
                            which the image will be deployed this can be set to true, otherwise the spawned
                            instance is prone to BSOD."},
-        @{"Name" = "beta_release"; "GroupName" = "cloudbase_init"; "DefaultValue" = $false; "AsBoolean" = $true;
-          "Description" = "This is a switch that allows the selection of Cloudbase-Init branches. If set to true, the
-                           beta branch will be used:
-                           https://cloudbase.it/downloads/CloudbaseInitSetup_<arch>.msi, where arch can be x86 or x64
-                           otherwise the stable branch will be used:
-                           https://cloudbase.it/downloads/CloudbaseInitSetup_Stable_<arch>.msi, where arch can be x86 or x64"},
-        @{"Name" = "serial_logging_port"; "GroupName" = "cloudbase_init"; "DefaultValue" = "COM1";
-          "Description" = "Serial log port for Cloudbase-Init.
-                           If set to null, the first serial port (if any) from the generation VM will be used"},
-        @{"Name" = "msi_path"; "GroupName" = "cloudbase_init";
-          "Description" = "If set, the Cloudbase-Init msi at this path will be used.
-                          The path needs to be a locally accessible file path."},
-        @{"Name" = "cloudbase_init_config_path"; "GroupName" = "cloudbase_init";
-          "Description" = "If set, the cloudbase-init.conf is replaced with the file at the path."},
-        @{"Name" = "cloudbase_init_unattended_config_path"; "GroupName" = "cloudbase_init";
-          "Description" = "If set, the cloudbase-init-unattend.conf is replaced with the file at the path."},
-        @{"Name" = "cloudbase_init_use_local_system"; "GroupName" = "cloudbase_init"; "AsBoolean" = $true; "DefaultValue" = $false;
-          "Description" = "If set, the Cloudbase-Init service will be run under Local System account.
-                           By default, a user named cloudbase-init with admin rights is created and used."},
         @{"Name" = "enable_custom_wallpaper"; "DefaultValue" = $true; "AsBoolean" = $true;
           "Description" = "If set to true, a custom wallpaper will be set according to the values of configuration options
                            wallpaper_path and wallpaper_solid_color"},
@@ -176,10 +155,6 @@ function Get-AvailableConfigOptions {
           "Description" = "Enables shutdown of the Windows instance from the logon console."},
         @{"Name" = "enable_ping_requests"; "DefaultValue" = $false; "AsBoolean" = $true;
           "Description" = "If set to true, firewall rules will be added to enable ping requests (ipv4 and ipv6)."},
-        @{"Name" = "enable_ipv6_eui64"; "DefaultValue" = $false; "AsBoolean" = $true;
-          "Description" = "If set to true, use EUI-64 derived IDs and disable privacy extensions for IPv6.
-                           If set to false, the IPv6 protocol might not work on OpenStack or CloudStack.
-                           See https://github.com/cloudbase/windows-openstack-imaging-tools/issues/192"},
         @{"Name" = "enable_active_mode"; "DefaultValue" = $false; "AsBoolean" = $true;
           "Description" = "If set to true, it will set the High Performance mode and some power mode
                            and registry tweaks to prevent the machine from sleeping / hibernating."},

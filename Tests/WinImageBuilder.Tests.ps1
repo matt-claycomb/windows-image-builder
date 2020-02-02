@@ -100,7 +100,6 @@ Describe "Test New-WindowsCloudImage" {
     Mock Copy-UnattendResources -Verifiable -ModuleName $moduleName { return 0 }
     Mock Copy-CustomResources -Verifiable -ModuleName $moduleName { return 0 }
     Mock Copy-Item -Verifiable -ModuleName $moduleName { return 0 }
-    Mock Download-CloudbaseInit -Verifiable -ModuleName $moduleName { return 0 }
     Mock Download-ZapFree -Verifiable -ModuleName $moduleName { return 0 }
     Mock Apply-Image -Verifiable -ModuleName $moduleName { return 0 }
     Mock Create-BCDBootConfig -Verifiable -ModuleName $moduleName { return 0 }

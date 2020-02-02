@@ -458,12 +458,6 @@ function Enable-PingFirewallRules {
     Write-Log "Ping" "Enabled ping for IPv4 and IPv6"
 }
 
-function Disable-IPv6TemporaryAddress {
-    Set-NetIPv6Protocol -RandomizeIdentifiers Disabled
-    Set-NetIPv6Protocol -UseTemporaryAddresses Disabled
-    Write-Log "IPv6" "RandomizeIdentifiers and UseTemporaryAddresses were disabled"
-}
-
 function Enable-ShutdownWithoutLogon {
     Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\" `
        -Name shutdownwithoutlogon -Value 1 -Type DWord
@@ -493,21 +487,12 @@ try {
     try {
         $productKey = Get-IniFileValue -Path $configIniPath -Section "DEFAULT" -Key "product_key"
     } catch {}
-    $serialPortName = Get-IniFileValue -Path $configIniPath -Section "cloudbase_init" -Key "serial_logging_port"
-    try {
-        $runCloudbaseInitUnderLocalSystem = Get-IniFileValue -Path $configIniPath -Section "cloudbase_init" `
-            -Key "cloudbase_init_use_local_system" -Default $false -AsBoolean
-    } catch {}
     try {
         $enableShutdownWithoutLogon = Get-IniFileValue -Path $configIniPath -Key "enable_shutdown_without_logon" `
             -Default $false -AsBoolean
     } catch {}
     try {
         $enablePing = Get-IniFileValue -Path $configIniPath -Key "enable_ping_requests" `
-            -Default $false -AsBoolean
-    } catch {}
-    try {
-        $useIpv6EUI64 = Get-IniFileValue -Path $configIniPath -Key "enable_ipv6_eui64" `
             -Default $false -AsBoolean
     } catch {}
     try {
@@ -562,53 +547,6 @@ try {
         Install-VMwareTools
     }
 
-    Run-CustomScript "RunBeforeCloudbaseInitInstall.ps1"
-    $Host.UI.RawUI.WindowTitle = "Installing Cloudbase-Init..."
-
-    $cloudbaseInitInstallDir = Join-Path $ENV:ProgramFiles "Cloudbase Solutions\Cloudbase-Init"
-    $CloudbaseInitMsiPath = "$resourcesDir\CloudbaseInit.msi"
-    $CloudbaseInitConfigPath = "$resourcesDir\cloudbase-init.conf"
-    $CloudbaseInitUnattendedConfigPath = "$resourcesDir\cloudbase-init-unattend.conf"
-    $CloudbaseInitMsiLog = "$resourcesDir\CloudbaseInit.log"
-
-    if (!$serialPortName) {
-        $serialPorts = Get-WmiObject Win32_SerialPort
-        if ($serialPorts) {
-            $serialPortName = $serialPorts[0].DeviceID
-        }
-    }
-
-    $msiexecArgumentList = "/i $CloudbaseInitMsiPath /qn /l*v $CloudbaseInitMsiLog"
-    if ($serialPortName) {
-        $msiexecArgumentList += " LOGGINGSERIALPORTNAME=$serialPortName"
-    }
-
-    $cloudbaseInitUser = 'cloudbase-init'
-    if ($runCloudbaseInitUnderLocalSystem) {
-        $msiexecArgumentList += " RUN_SERVICE_AS_LOCAL_SYSTEM=1"
-        $cloudbaseInitUser = "LocalSystem"
-    }
-
-    $p = Start-Process -Wait -PassThru -FilePath msiexec -ArgumentList $msiexecArgumentList
-    if ($p.ExitCode -ne 0) {
-        Write-Log "Cloudbase-Init" "Failed to install cloudbase-init"
-        throw "Installing $CloudbaseInitMsiPath failed. Log: $CloudbaseInitMsiLog"
-    }
-
-    if (Test-Path $CloudbaseInitConfigPath) {
-        Copy-Item -Force $CloudbaseInitConfigPath "${cloudbaseInitInstallDir}\conf\cloudbase-init.conf"
-        Write-Log "CustomCloudbaseInitConfig" $CloudbaseInitConfigPath
-    }
-    if (Test-Path $CloudbaseInitUnattendedConfigPath) {
-        Copy-Item -Force $CloudbaseInitUnattendedConfigPath "${cloudbaseInitInstallDir}\conf\cloudbase-init-unattend.conf"
-        Write-Log "CustomCloudbaseInitUnattendConfig" $CloudbaseInitUnattendedConfigPath
-    }
-
-    $Host.UI.RawUI.WindowTitle = "Running SetSetupComplete..."
-    & "${cloudbaseInitInstallDir}\bin\SetSetupComplete.cmd"
-    Write-Log "Cloudbase-Init" "Service installed successfully under user ${cloudbaseInitUser}"
-    Run-CustomScript "RunAfterCloudbaseInitInstall.ps1"
-
     Run-Defragment
 
     Release-IP
@@ -625,10 +563,6 @@ try {
 
     if ($enablePing) {
         Enable-PingFirewallRules
-    }
-
-    if ($useIpv6EUI64) {
-        Disable-IPv6TemporaryAddress
     }
 
     if ($windowsClient -and $enableAdministrator) {
@@ -648,7 +582,7 @@ try {
     }
 
     $Host.UI.RawUI.WindowTitle = "Running Sysprep..."
-    $unattendedXmlPath = "${cloudbaseInitInstallDir}\conf\Unattend.xml"
+    $unattendedXmlPath = "${$resourcesDir}\Unattend.xml"
     Set-PersistDrivers -Path $unattendedXmlPath -Persist:$persistDrivers
 
     if ($disableSwap) {
