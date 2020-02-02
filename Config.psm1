@@ -49,12 +49,6 @@ function Get-AvailableConfigOptions {
           "Description" = "It will force the image generation when RunSysprep is False or the selected SwitchName
                            is not an external one. Use this parameter with caution because it can easily generate
                            unstable images."},
-         @{"Name" = "compression_format";
-          "Description" = "Select between tar, gz, zip formats or any combination between these."},
-        @{"Name" = "zip_password";
-          "Description" = "If this parameter is set, after the image is generated,
-                           a password protected zip archive with the image will be created. 
-                           compression_format must contain zip in order for this parameter to be used"},
         @{"Name" = "gold_image"; "DefaultValue" = $false; "AsBoolean" = $true;
           "Description" = "It will stop the image generation after the updates are installed and cleaned."},
         @{"Name" = "gold_image_path";
@@ -121,10 +115,6 @@ function Get-AvailableConfigOptions {
                            the script will throw an error."},
         @{"Name" = "disable_first_logon_animation"; "DefaultValue" = $false; "AsBoolean" = $true;
           "Description" = "If set, the animation displayed during the first login on Windows Client versions will be disabled."},
-        @{"Name" = "compress_qcow2"; "DefaultValue" = $false; "AsBoolean" = $true;
-          "Description" = "If set to true and the target image format is QCOW2, the image conversion will
-                           use qemu-img built-in compression. The compressed qcow2 image will be smaller, but the conversion
-                           will take longer time."},
         @{"Name" = "zero_unused_volume_sectors"; "DefaultValue" = $false; "AsBoolean" = $true;
           "Description" = "If set to true, during final cleanup, https://github.com/felfert/ntfszapfree will be used to zero unused space.
                            This helps qemu-img to minimize image size. In order to benefit from this, an additional invocation
