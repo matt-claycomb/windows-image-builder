@@ -42,7 +42,7 @@ and Windows Assessment and Deployment Kit (ADK)
 * Mount or extract the Windows ISO file
 * Download and / or extract the Windows compatible drivers
 * If the target environment is MAAS or the image generation is configured to install updates,<br/>
-the windows-curtin-hooks and WindowsUpdates git submodules are required.<br/>
+the WindowsUpdates git submodule ia required.<br/>
 Run `git submodule update --init` to retrieve them
 * Import the WinImageBuilder.psm1 module
 * Use the New-WindowsCloudImage or New-WindowsOnlineCloudImage methods with <br/> the appropriate configuration file

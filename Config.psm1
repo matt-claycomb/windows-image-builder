@@ -33,7 +33,7 @@ function Get-AvailableConfigOptions {
         @{"Name" = "image_type"; "DefaultValue" = "HYPER-V";
           "Description" = "This parameter allows to choose between MAAS, KVM, VMware and Hyper-V specific images.
                            For HYPER-V, the generated image should be in vhd or vhdx format.
-                           For MAAS, the curtin tools are installed and the generated image should be in raw.tgz format.
+                           For MAAS, the generated image should be in raw.tgz format.
                            For KVM, the generated image should be in qcow2 format."},
         @{"Name" = "disk_layout"; "DefaultValue" = "BIOS";
           "Description" = "This parameter can be set to either BIOS or UEFI."},
@@ -50,8 +50,6 @@ function Get-AvailableConfigOptions {
           "Description" = "It will force the image generation when RunSysprep is False or the selected SwitchName
                            is not an external one. Use this parameter with caution because it can easily generate
                            unstable images."},
-        @{"Name" = "install_maas_hooks"; "DefaultValue" = $false; "AsBoolean" = $true;
-          "Description" = "If set to true, MAAS Windows curtin hooks will be copied to the image root directory."},
          @{"Name" = "compression_format";
           "Description" = "Select between tar, gz, zip formats or any combination between these."},
         @{"Name" = "zip_password";

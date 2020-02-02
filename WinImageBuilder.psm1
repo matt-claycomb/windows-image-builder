@@ -429,8 +429,6 @@ function Copy-UnattendResources {
         [Parameter(Mandatory=$true)]
         [string]$imageInstallationType,
         [Parameter(Mandatory=$false)]
-        [boolean]$InstallMaaSHooks,
-        [Parameter(Mandatory=$false)]
         [string]$VMwareToolsPath
     )
 
@@ -443,16 +441,6 @@ function Copy-UnattendResources {
     }
     Write-Log "Copying: $localResourcesDir $resourcesDir"
     Copy-Item -Recurse -Force "$localResourcesDir\*" $resourcesDir
-
-    if ($InstallMaaSHooks) {
-        $src = Join-Path $localResourcesDir "windows-curtin-hooks\curtin"
-        if ((Test-Path $src)) {
-            $dst = Split-Path $resourcesDir
-            Copy-Item -Recurse $src $dst
-        } else {
-            throw "The Windows curtin hooks module is not present.
-                Please run git submodule update --init " }
-    }
 
     if ($VMwareToolsPath) {
         Write-Log "Copying VMwareTools..."
@@ -1703,8 +1691,7 @@ function Test-OfflineWindowsImage {
      If any compression is detected, a decompression is performed for each compression.
      If the image format is other than vhdx, "qemu-img convert -O vhdx" is performed.
      The vhdx is mounted and the following checks are performed:
-       1. If curtin (for MAAS) folder exists
-       2. If OEM drivers are installed
+       1. If OEM drivers are installed
      Finally, the full chain of decompressed/converted files is removed.
      #>
     [CmdletBinding()]
@@ -1806,15 +1793,6 @@ function Test-OfflineWindowsImage {
             Get-PSDrive | Out-Null
             $mountPoint = (Get-Partition -DiskNumber $driveNumber | `
                 Where-Object {@("Basic", "IFS") -contains $_.Type}).DriveLetter + ":"
-
-            # Test if curtin modules are installed
-            if ($windowsImageConfig.install_maas_hooks) {
-                if (Test-Path (Join-Path $mountPoint "curtin")) {
-                    Write-Log "Curtin hooks are installed."
-                } else {
-                    throw "Curtin hooks are not installed on the image."
-                }
-            }
 
             # Test if extra drivers are installed
             if ($windowsImageConfig.drivers_path) {
