@@ -6,8 +6,8 @@ Windows OpenStack Imaging Tools automates the generation of Windows images.<br/>
 The tools are a bundle of PowerShell modules and scripts.
 
 The supported target environments for the Windows images are:
-* OpenStack with KVM, Hyper-V, VMware and baremetal hypervisor types
-* MAAS with KVM, Hyper-V, VMware and baremetal
+* OpenStack with KVM, Hyper-V and baremetal hypervisor types
+* MAAS with KVM, Hyper-V and baremetal
 
 The generation environment needs to be a Windows one, with Hyper-V virtualization enabled.<br/>
 If you plan to run the online Windows setup step on another system / hypervisor, the Hyper-V virtualization is not required.
@@ -114,7 +114,6 @@ in `Examples/create-windows-online-cloud-image.ps1`
 ### Useful links on ask.cloudbase.it
   * https://ask.cloudbase.it/question/2365/windows-server-2016-standard-image-wont-boot-blue-windows-icon-hangs/
   * https://ask.cloudbase.it/question/1227/nano-server-wont-boot/
-  * https://ask.cloudbase.it/question/1179/win2012-boot-error-on-openstack-in-vmware-env/
 
 ## For developers
 

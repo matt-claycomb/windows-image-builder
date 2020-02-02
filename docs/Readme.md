@@ -14,8 +14,6 @@ The steps to create an image that has to be instantiated on a hypervisor before 
   3. Create VHD(X) and mount it
   4. Create the Unattend XML used for the first boot and move it to the mount point root
   5. Copy resources to the mounted point:
-      * VMware tools
-      * MAAS hooks
       * UnattendResources folder from the repo
       * Custom resources defined by the user
       * Configuration file

@@ -324,20 +324,6 @@ function Run-CustomScript {
     }
 }
 
-function Install-VMwareTools {
-    $Host.UI.RawUI.WindowTitle = "Installing VMware tools..."
-    $vmwareToolsInstallArgs = "/s /v /qn REBOOT=R /l $ENV:Temp\vmware_tools_install.log"
-    if (Test-Path $resourcesDir) {
-        $vmwareToolsPath = Join-Path $resourcesDir "\VMware-tools.exe"
-    }
-    $p = Start-Process -FilePath $vmwareToolsPath -ArgumentList $vmwareToolsInstallArgs -Wait -verb runAS
-    if ($p.ExitCode) {
-        Write-Log "VMwareTools" "Error: Tools could not be installed"
-        throw "VMware tools setup failed" 
-    }
-    Write-Log "VMwareTools" "Tools installed successfully"
-}
-
 function Write-HostLog {
     <#
     .SYNOPSIS
@@ -464,9 +450,6 @@ try {
                                             -Key "enable_administrator_account" -Default $false -AsBoolean
     $goldImage = Get-IniFileValue -Path $configIniPath -Section "DEFAULT" -Key "gold_image" -Default $false -AsBoolean
     try {
-        $vmwareToolsPath = Get-IniFileValue -Path $configIniPath -Section "DEFAULT" -Key "vmware_tools_path"
-    } catch {}
-    try {
         $productKey = Get-IniFileValue -Path $configIniPath -Section "DEFAULT" -Key "product_key"
     } catch {}
     try {
@@ -524,11 +507,6 @@ try {
         Remove-Item -Recurse -Force $resourcesDir
         shutdown -s -t 0 -f
     }
-
-    if ($vmwareToolsPath) {
-        Install-VMwareTools
-    }
-
     Run-Defragment
 
     Release-IP

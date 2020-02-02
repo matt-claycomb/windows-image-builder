@@ -421,15 +421,12 @@ function Copy-CustomResources {
     Write-Log "Custom Resources at: $ResourcesDir."
 }
 
-
 function Copy-UnattendResources {
     Param(
         [Parameter(Mandatory=$true)]
         [string]$resourcesDir,
         [Parameter(Mandatory=$true)]
-        [string]$imageInstallationType,
-        [Parameter(Mandatory=$false)]
-        [string]$VMwareToolsPath
+        [string]$imageInstallationType
     )
 
     Write-Log "Copy Unattend Resources: $imageInstallationType..."
@@ -442,12 +439,6 @@ function Copy-UnattendResources {
     Write-Log "Copying: $localResourcesDir $resourcesDir"
     Copy-Item -Recurse -Force "$localResourcesDir\*" $resourcesDir
 
-    if ($VMwareToolsPath) {
-        Write-Log "Copying VMwareTools..."
-        $dst = Join-Path $resourcesDir "\VMware-tools.exe"
-        Write-Log "VMware tools path is: $VMwareToolsPath"
-        Copy-Item $VMwareToolsPath $dst
-    }
     Write-Log "Resources have been copied."
 }
 
@@ -456,16 +447,6 @@ function Validate-WindowsImageConfig {
         [Parameter(Mandatory=$true)]
         [array]$ImageConfig
     )
-    switch ($windowsImageConfig.image_type) {
-            "VMware" {
-                if (!$windowsImageConfig.vmware_tools_path) {
-                    Write-Warning "VMware Tools path was not set.
-                    The image that you create might not be usable on VMware hypervisor type."
-                } elseif (!(Test-Path $windowsImageConfig.vmware_tools_path)) {
-                    throw "VMware Tools path does not exist."
-                }
-            }
-        }
     if ($windowsImageConfig.compression_format) {
         $compressionFormats = $windowsImageConfig.compression_format.split(".")
         $invalidCompressionFormat = $compressionFormats | Where-Object `
@@ -1307,13 +1288,6 @@ function New-WindowsOnlineImage {
             Remove-Item -Force $virtualDiskPath
         }
 
-        if ($windowsImageConfig.image_type -ceq "VMware") {
-            $imagePath = $barePath + ".vmdk"
-            Write-Log "Converting VHD to VMDK"
-            Convert-VirtualDisk -vhdPath $virtualDiskPath -outPath $imagePath -format "vmdk"
-            Remove-Item -Force $virtualDiskPath
-        }
-
         if ($windowsImageConfig.image_type -eq "KVM") {
             $imagePath = $barePath + ".qcow2"
             Write-Log "Converting VHD to Qcow2"
@@ -1423,9 +1397,7 @@ function New-WindowsCloudImage {
                 }
             }
             Generate-UnattendXml @xmlParams
-            Copy-UnattendResources -resourcesDir $resourcesDir -imageInstallationType $image.ImageInstallationType `
-                -InstallMaaSHooks $windowsImageConfig.install_maas_hooks `
-                -VMwareToolsPath $windowsImageConfig.vmware_tools_path
+            Copy-UnattendResources -resourcesDir $resourcesDir -imageInstallationType $image.ImageInstallationType
             Copy-CustomResources -ResourcesDir $resourcesDir -CustomResources $windowsImageConfig.custom_resources_path `
                                  -CustomScripts $windowsImageConfig.custom_scripts_path
             Copy-Item $ConfigFilePath "$resourcesDir\config.ini"
@@ -1583,9 +1555,7 @@ function New-WindowsFromGoldenImage {
         $resourcesDir = Join-Path -Path $driveLetterGold -ChildPath "UnattendResources"
         Reset-BCDSearchOrder -systemDrive $driveLetterGold -windowsDrive $driveLetterGold `
             -diskLayout $windowsImageConfig.disk_layout
-        Copy-UnattendResources -resourcesDir $resourcesDir -imageInstallationType $windowsImageConfig.image_name `
-                               -InstallMaaSHooks $windowsImageConfig.install_maas_hooks `
-                               -VMwareToolsPath $windowsImageConfig.vmware_tools_path
+        Copy-UnattendResources -resourcesDir $resourcesDir -imageInstallationType $windowsImageConfig.image_name
         Copy-CustomResources -ResourcesDir $resourcesDir -CustomResources $windowsImageConfig.custom_resources_path `
                              -CustomScripts $windowsImageConfig.custom_scripts_path
         Copy-Item $ConfigFilePath "$resourcesDir\config.ini"
@@ -1645,15 +1615,6 @@ function New-WindowsFromGoldenImage {
                 -format "qcow2" -CompressQcow2 $windowsImageConfig.compress_qcow2
             Remove-Item -Force $imagePath
             $imagePath = $imagePathQcow2
-        }
-
-        if ($windowsImageConfig.image_type -eq "VMware") {
-            $imagePathVmdk = $barePath + ".vmdk"
-            Write-Log "Converting VHD to VMDK"
-            Convert-VirtualDisk -vhdPath $imagePath -outPath $imagePathVmdk `
-                -format "vmdk"
-            Remove-Item -Force $imagePath
-            $imagePath = $imagePathVmdk
         }
 
         if ($windowsImageConfig.compression_format) {
@@ -1750,10 +1711,6 @@ function Test-OfflineWindowsImage {
         if ($windowsImageConfig.image_type -eq "MAAS") {
             $fileExtension = 'raw'
             $diskFormat = 'raw'
-        }
-        if ($windowsImageConfig.image_type -eq "VMware") {
-            $fileExtension = 'vmdk'
-            $diskFormat = 'vmdk'
         }
 
         if (!([System.IO.Path]::GetExtension($imagePath) -like ".${fileExtension}")) {
