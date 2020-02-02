@@ -79,10 +79,9 @@ Set-IniFileValue -Path $configFilePath -Section "Default" -Key "image_type" -Val
 Set-IniFileValue -Path $configFilePath -Section "Default" -Key "compression_format" -Value "gz"
 Set-IniFileValue -Path $configFilePath -Section "updates" -Key "install_updates" -Value "True"
 Set-IniFileValue -Path $configFilePath -Section "updates" -Key "purge_updates" -Value "True"
-Set-IniFileValue -Path $configFilePath -Section "sysprep" -Key "disable_swap" -Value "True"
 Set-IniFileValue -Path $configFilePath -Section "vm" -Key "cpu_count" -Value 4
 Set-IniFileValue -Path $configFilePath -Section "vm" -Key "ram_size" -Value (4GB)
-Set-IniFileValue -Path $configFilePath -Section "vm" -Key "disk_size" -Value (30GB)
+Set-IniFileValue -Path $configFilePath -Section "vm" -Key "disk_size" -Value (60GB)
 Set-IniFileValue -Path $configFilePath -Section "vm" -Key "external_switch" -Value $HyperVSwitchName
 
 # This scripts generates a vhdx gziped image file, that can be used with Digital Ocean

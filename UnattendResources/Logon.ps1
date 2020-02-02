@@ -34,43 +34,6 @@ function Set-PersistDrivers {
     Write-Log "Drivers" "PersistDrivers was set to ${Persist} in the unattend.xml"
 }
 
-function Set-UnattendEnableSwap {
-    Param(
-    [parameter(Mandatory=$true)]
-    [string]$Path
-    )
-    if (!(Test-Path $Path)) {
-        return $false
-    } try {
-        $xml = [xml](Get-Content $Path)
-    } catch {
-        Write-Error "Failed to load $Path"
-        return $false
-    }
-    if (!$xml.unattend.settings) {
-        return $false
-    }
-    foreach ($i in $xml.unattend.settings) {
-        if ($i.pass -eq "specialize") {
-            $index = [array]::IndexOf($xml.unattend.settings, $i)
-            if ($xml.unattend.settings[$index].component.RunSynchronous.RunSynchronousCommand.Order) {
-                $xml.unattend.settings[$index].component.RunSynchronous.RunSynchronousCommand.Order = "2"
-            }
-            [xml]$RunSynchronousCommandXml = @"
-        <RunSynchronousCommand xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-          <Order>1</Order>
-          <Path>"C:\Windows\System32\reg.exe" ADD "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v "PagingFiles" /d "?:\pagefile.sys" /f</Path>
-          <Description>Set page file to be automatically managed by the system</Description>
-          <WillReboot>Never</WillReboot>
-        </RunSynchronousCommand>
-"@
-          $xml.unattend.settings[$index].component.RunSynchronous.AppendChild($xml.ImportNode($RunSynchronousCommandXml.RunSynchronousCommand, $true))
-        }
-    }
-    $xml.Save($Path)
-    Write-Log "Swap(1)" "Was enabled in the unattend.xml"
-}
-
 function Optimize-SparseImage {
     $zapfree = "$resourcesDir\zapfree.exe"
     if ( Test-Path $zapfree ) {
@@ -193,19 +156,6 @@ function ExecRetry($command, $maxRetryCount=4, $retryInterval=4) {
             }
         }
     }
-}
-
-function Disable-Swap {
-    $computerSystem = Get-WmiObject Win32_ComputerSystem
-    if ($computerSystem.AutomaticManagedPagefile) {
-        $computerSystem.AutomaticManagedPagefile = $False
-        $computerSystem.Put()
-    }
-    $pageFileSetting = Get-WmiObject Win32_PageFileSetting
-    if ($pageFileSetting) {
-        $pageFileSetting.Delete()
-    }
-    Write-Log "Swap" "Swap was disabled successfully"
 }
 
 function License-Windows {
@@ -445,7 +395,6 @@ try {
     $installUpdates = Get-IniFileValue -Path $configIniPath -Section "updates" -Key "install_updates" -Default $false -AsBoolean
     $persistDrivers = Get-IniFileValue -Path $configIniPath -Section "sysprep" -Key "persist_drivers_install" -Default $true -AsBoolean
     $purgeUpdates = Get-IniFileValue -Path $configIniPath -Section "updates" -Key "purge_updates" -Default $false -AsBoolean
-    $disableSwap = Get-IniFileValue -Path $configIniPath -Section "sysprep" -Key "disable_swap" -Default $false -AsBoolean
     $enableAdministrator = Get-IniFileValue -Path $configIniPath -Section "DEFAULT" `
                                             -Key "enable_administrator_account" -Default $false -AsBoolean
     $goldImage = Get-IniFileValue -Path $configIniPath -Section "DEFAULT" -Key "gold_image" -Default $false -AsBoolean
@@ -540,13 +489,6 @@ try {
     $Host.UI.RawUI.WindowTitle = "Running Sysprep..."
     $unattendedXmlPath = "${$resourcesDir}\Unattend.xml"
     Set-PersistDrivers -Path $unattendedXmlPath -Persist:$persistDrivers
-
-    if ($disableSwap) {
-        ExecRetry {
-            Disable-Swap
-        }
-        Set-UnattendEnableSwap -Path $unattendedXmlPath
-    }
 
     Run-CustomScript "RunBeforeSysprep.ps1"
     Optimize-SparseImage

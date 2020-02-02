@@ -90,7 +90,7 @@ function Get-AvailableConfigOptions {
           "Description" = "The number of CPU cores assigned to the VM used to generate the image."},
         @{"Name" = "ram_size"; "GroupName" = "vm"; "DefaultValue" = "2147483648";
           "Description" = "RAM (in bytes) assigned to the VM used to generate the image."},
-        @{"Name" = "disk_size"; "GroupName" = "vm"; "DefaultValue" = "42949672960";
+        @{"Name" = "disk_size"; "GroupName" = "vm"; "DefaultValue" = "64424509440";
           "Description" = "Disk space (in bytes) assigned to the boot disk for the VM used to generate the image."},
         @{"Name" = "shrink_image_to_minimum_size"; "DefaultValue" = $true; "AsBoolean" = $true
           "Description" = "Whether to shrink the image partition and disk after the image generation is complete."},
@@ -105,13 +105,6 @@ function Get-AvailableConfigOptions {
           "Description" = "Used to clean the OS on the VM, and to prepare it for a first-time use."},
         @{"Name" = "unattend_xml_path"; "GroupName" = "sysprep"; "DefaultValue" = "UnattendTemplate.xml";
           "Description" = "The path to the Unattend XML template file used for sysprep."},
-        @{"Name" = "disable_swap"; "GroupName" = "sysprep"; "DefaultValue" = $false; "AsBoolean" = $true;
-          "Description" = "DisableSwap option will disable the swap when the image is generated and will add a setting
-                           in the Unattend.xml file which will enable swap at boot time during specialize step.
-                           This is required, as by default, the amount of swap space on Windows machine is directly
-                           proportional to the RAM size and if the image has in the initial stage low disk space,
-                           the first boot will fail due to not enough disk space. The swap is set to the default
-                           automatic setting right after the resize of the partitions is performed by cloudbase-init."},
         @{"Name" = "persist_drivers_install"; "GroupName" = "sysprep"; "DefaultValue" = $true; "AsBoolean" = $true;
           "Description" = "In case the hardware on which the image is generated will also be the hardware on
                            which the image will be deployed this can be set to true, otherwise the spawned

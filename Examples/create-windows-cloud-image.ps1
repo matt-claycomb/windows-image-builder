@@ -54,11 +54,10 @@ Set-IniFileValue -Path $configFilePath -Section "Default" -Key "wim_file_path" -
 Set-IniFileValue -Path $configFilePath -Section "Default" -Key "image_name" -Value $image.ImageName
 Set-IniFileValue -Path $configFilePath -Section "Default" -Key "image_path" -Value $virtualDiskPath
 Set-IniFileValue -Path $configFilePath -Section "Default" -Key "virtual_disk_format" -Value "RAW"
-Set-IniFileValue -Path $configFilePath -Section "vm" -Key "disk_size" -Value (30GB)
+Set-IniFileValue -Path $configFilePath -Section "vm" -Key "disk_size" -Value (60GB)
 Set-IniFileValue -Path $configFilePath -Section "drivers" -Key "drivers_path" -Value $extraDriversPath
 Set-IniFileValue -Path $configFilePath -Section "updates" -Key "install_updates" -Value "True"
 Set-IniFileValue -Path $configFilePath -Section "updates" -Key "purge_updates" -Value "True"
-Set-IniFileValue -Path $configFilePath -Section "sysprep" -Key "disable_swap" -Value "True"
 
 # This scripts generates a raw image file that, after being started as an instance and
 # after it shuts down, it can be used with Ironic or KVM hypervisor in OpenStack.
