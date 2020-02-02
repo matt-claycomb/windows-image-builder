@@ -28,12 +28,6 @@ function Get-AvailableConfigOptions {
                            and look for the Name property."},
         @{"Name" = "image_path"; "DefaultValue" = "${ENV:TEMP}\win-image.vhdx";
           "Description" = "The destination of the generated image."},
-        @{"Name" = "virtual_disk_format"; "DefaultValue" = "VHDX";
-          "Description" = "Select between VHD, VHDX, QCOW2, VMDK or RAW formats."},
-        @{"Name" = "image_type"; "DefaultValue" = "HYPER-V";
-          "Description" = "This parameter allows to choose between KVM and Hyper-V specific images.
-                           For HYPER-V, the generated image should be in vhd or vhdx format.
-                           For KVM, the generated image should be in qcow2 format."},
         @{"Name" = "disk_layout"; "DefaultValue" = "BIOS";
           "Description" = "This parameter can be set to either BIOS or UEFI."},
         @{"Name" = "product_key";

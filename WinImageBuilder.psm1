@@ -355,27 +355,6 @@ function Check-DismVersionForImage {
     }
 }
 
-function Convert-VirtualDisk {
-    Param(
-        [Parameter(Mandatory=$true)]
-        [string]$vhdPath,
-        [Parameter(Mandatory=$true)]
-        [string]$outPath,
-        [Parameter(Mandatory=$true)]
-        [string]$format
-    )
-
-    Write-Log "Convert Virtual Disk: $vhdPath..."
-    $format = $format.ToLower()
-    $qemuParams = @("$scriptPath\bin\qemu-img.exe", "convert")
-    $qemuParams += @("-O", $format, $vhdPath, $outPath)
-    Write-Log "Converting virtual disk image from $vhdPath to $outPath..."
-    Execute-Retry {
-        Start-Executable $qemuParams
-    }
-    Write-Log "Finish to convert virtual disk."
-}
-
 function Copy-CustomResources {
     Param(
         [Parameter(Mandatory=$true)]
@@ -612,31 +591,6 @@ function Get-PathWithoutExtension {
         $fileName = [System.IO.Path]::GetFileNameWithoutExtension($fileName)
     }
     return Join-Path ([System.IO.Path]::GetDirectoryName($Path)) $fileName
-}
-function Start-Executable {
-    [CmdletBinding()]
-    Param(
-        [Parameter(Mandatory=$true)]
-        [Alias("7za.exe")]
-        [array]$Command
-    )
-    PROCESS {
-        $cmdType = (Get-Command $Command[0]).CommandType
-        if ($cmdType -eq "Application") {
-            $ErrorActionPreference = "SilentlyContinue"
-            $ret = & $Command[0] $Command[1..$Command.Length] 2>&1
-            $ErrorActionPreference = "Stop"
-        } else {
-            $ret = & $Command[0] $Command[1..$Command.Length]
-        }
-        if ($cmdType -eq "Application" -and $LASTEXITCODE) {
-            Throw ("Failed to run: " + ($Command -Join " "))
-        }
-        if ($ret -and $ret.Length -gt 0) {
-            return $ret
-        }
-        return $false
-    }
 }
 
 function Resize-VHDImage {
@@ -1046,11 +1000,8 @@ function New-WindowsOnlineImage {
     $windowsImageConfig = Get-WindowsImageConfig -ConfigFilePath $ConfigFilePath
 
     if ($windowsImageConfig.gold_image) {
-        if  (($windowsImageConfig.image_type -ne 'HYPER-V') -or `
-            (!$windowsImageConfig.virtual_disk_format -in @("VHD","VHDX")) -or `
-            (![System.IO.Path]::GetExtension($windowsImageConfig.image_path) -in @(".vhd",".vhdx"))) {
-            throw "A golden image file should have a vhd(x) extension/disk`
-                   format and the image_type should be HYPER-V."
+        if  (![System.IO.Path]::GetExtension($windowsImageConfig.image_path) -in @(".vhd",".vhdx")) {
+            throw "A golden image file should have a vhd(x) extension/disk format."
         }
     }
 
@@ -1092,8 +1043,6 @@ function New-WindowsOnlineImage {
         Copy-Item -Path $ConfigFilePath -Destination $offlineConfigFilePath
         Set-IniFileValue -Path $offlineConfigFilePath -Section 'DEFAULT' -Key 'image_path' `
                 -Value $virtualDiskPath
-        Set-IniFileValue -Path $offlineConfigFilePath -Section 'DEFAULT' -Key 'virtual_disk_format' `
-                -Value 'VHDX'
         New-WindowsCloudImage -ConfigFilePath $offlineConfigFilePath
 
         if ($windowsImageConfig.run_sysprep) {
@@ -1113,13 +1062,6 @@ function New-WindowsOnlineImage {
             Resize-VHDImage $virtualDiskPath
         }
         Optimize-VHD $VirtualDiskPath -Mode Full
-
-        if ($windowsImageConfig.image_type -eq "KVM") {
-            $imagePath = $barePath + ".qcow2"
-            Write-Log "Converting VHD to Qcow2"
-            Convert-VirtualDisk -vhdPath $virtualDiskPath -outPath $imagePath -format "qcow2"
-            Remove-Item -Force $virtualDiskPath
-        }
 
         if ($imagePath -ne $windowsImageConfig['image_path']) {
             Move-Item -Force $imagePath $windowsImageConfig['image_path']
@@ -1260,12 +1202,8 @@ function New-WindowsCloudImage {
         }
 
         $barePath = Get-PathWithoutExtension $windowsImageConfig.image_path 3
-        $imagePath = $barePath + "." + $windowsImageConfig.virtual_disk_format
-        if (!($windowsImageConfig.virtual_disk_format -in @("VHD", "VHDX"))) {
-            Convert-VirtualDisk -vhdPath $vhdPath -outPath $imagePath `
-                -format $windowsImageConfig.virtual_disk_format
-            Remove-Item -Force $vhdPath
-        } elseif ($vhdPath -ne $imagePath) {
+        $imagePath = $barePath + ".VHDX"
+        if ($vhdPath -ne $imagePath) {
             Move-Item -Force $vhdPath $imagePath
         }
         if ($imagePath -ne $windowsImageConfig['image_path']) {
@@ -1405,23 +1343,12 @@ function New-WindowsFromGoldenImage {
         $barePath = Get-PathWithoutExtension $windowsImageConfig.image_path 3
         $imagePath = $windowsImageConfig.gold_image_path
 
-        if ($windowsImageConfig.image_type -eq "HYPER-V") {
-            $imagePathVhdx = $barePath + ".vhdx"
-            if ($imagePath -ne $imagePathVhdx) {
-                Move-Item -Force $imagePath $imagePathVhdx
-                $imagePath = $imagePathVhdx
-            }
-        }
-
-        if ($windowsImageConfig.image_type -eq "KVM") {
-            $imagePathQcow2 = $barePath + ".qcow2"
-            Write-Log "Converting VHD to QCow2"
-            Convert-VirtualDisk -vhdPath $imagePath -outPath $imagePathQcow2 `
-                -format "qcow2" 
-            Remove-Item -Force $imagePath
-            $imagePath = $imagePathQcow2
-        }
-
+		$imagePathVhdx = $barePath + ".vhdx"
+		if ($imagePath -ne $imagePathVhdx) {
+			Move-Item -Force $imagePath $imagePathVhdx
+			$imagePath = $imagePathVhdx
+		}
+		
         if ($imagePath -ne $windowsImageConfig['image_path']) {
             Move-Item -Force $imagePath $windowsImageConfig['image_path']
         }
