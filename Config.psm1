@@ -31,9 +31,8 @@ function Get-AvailableConfigOptions {
         @{"Name" = "virtual_disk_format"; "DefaultValue" = "VHDX";
           "Description" = "Select between VHD, VHDX, QCOW2, VMDK or RAW formats."},
         @{"Name" = "image_type"; "DefaultValue" = "HYPER-V";
-          "Description" = "This parameter allows to choose between MAAS, KVM and Hyper-V specific images.
+          "Description" = "This parameter allows to choose between KVM and Hyper-V specific images.
                            For HYPER-V, the generated image should be in vhd or vhdx format.
-                           For MAAS, the generated image should be in raw.tgz format.
                            For KVM, the generated image should be in qcow2 format."},
         @{"Name" = "disk_layout"; "DefaultValue" = "BIOS";
           "Description" = "This parameter can be set to either BIOS or UEFI."},

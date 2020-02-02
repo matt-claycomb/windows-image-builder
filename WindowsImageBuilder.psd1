@@ -40,7 +40,7 @@ CompanyName = 'Cloudbase Solutions SRL'
 Copyright = '(c) 2019 Cloudbase Solutions SRL. All rights reserved.'
 
 # Description of the functionality provided by this module
-Description = 'Powershell module to automate Windows image generation for OpenStack, MAAS, KVM, HyperV, ESXi and more.'
+Description = 'Powershell module to automate Windows image generation.'
 
 # Minimum version of the Windows PowerShell engine required by this module
 PowerShellVersion = '4.0'

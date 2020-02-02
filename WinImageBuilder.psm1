@@ -1281,13 +1281,6 @@ function New-WindowsOnlineImage {
         }
         Optimize-VHD $VirtualDiskPath -Mode Full
 
-        if ($windowsImageConfig.image_type -eq "MAAS") {
-            $imagePath = $barePath + ".raw"
-            Write-Log "Converting VHD to RAW"
-            Convert-VirtualDisk -vhdPath $virtualDiskPath -outPath $imagePath -format "raw"
-            Remove-Item -Force $virtualDiskPath
-        }
-
         if ($windowsImageConfig.image_type -eq "KVM") {
             $imagePath = $barePath + ".qcow2"
             Write-Log "Converting VHD to Qcow2"
@@ -1599,15 +1592,6 @@ function New-WindowsFromGoldenImage {
             }
         }
 
-        if ($windowsImageConfig.image_type -eq "MAAS") {
-            $imagePathRaw = $barePath + ".raw"
-            Write-Log "Converting VHD to RAW"
-            Convert-VirtualDisk -vhdPath $imagePath -outPath $imagePathRaw `
-                -format "RAW"
-            Remove-Item -Force $imagePath
-            $imagePath = $imagePathRaw
-        }
-
         if ($windowsImageConfig.image_type -eq "KVM") {
             $imagePathQcow2 = $barePath + ".qcow2"
             Write-Log "Converting VHD to QCow2"
@@ -1637,7 +1621,6 @@ function New-WindowsFromGoldenImage {
         throw $_
     }
 }
-
 
 function Test-OfflineWindowsImage {
     <#
@@ -1708,10 +1691,6 @@ function Test-OfflineWindowsImage {
             $fileExtension = 'qcow2'
             $diskFormat = 'qcow2'
         }
-        if ($windowsImageConfig.image_type -eq "MAAS") {
-            $fileExtension = 'raw'
-            $diskFormat = 'raw'
-        }
 
         if (!([System.IO.Path]::GetExtension($imagePath) -like ".${fileExtension}")) {
             throw "${imagePath} does not have ${fileExtension} extension."
@@ -1777,6 +1756,6 @@ function Test-OfflineWindowsImage {
 }
 
 
-Export-ModuleMember New-WindowsCloudImage, Get-WimFileImagesInfo, New-MaaSImage, Resize-VHDImage,
+Export-ModuleMember New-WindowsCloudImage, Get-WimFileImagesInfo, Resize-VHDImage,
     New-WindowsOnlineImage, New-WindowsFromGoldenImage, Get-WindowsImageConfig,
     New-WindowsImageConfig, Test-OfflineWindowsImage
