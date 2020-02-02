@@ -413,31 +413,6 @@ function Copy-UnattendResources {
     Write-Log "Resources have been copied."
 }
 
-function Download-ZapFree {
-    Param(
-        [Parameter(Mandatory=$true)]
-        [string]$resourcesDir,
-        [Parameter(Mandatory=$true)]
-        [string]$osArch
-    )
-    $ZapFreePath = "$resourcesDir\zapfree.exe"
-    $ZapFree32Path = "$resourcesDir\zapfree32.exe"
-    $ZapFreeZipPath = "$resourcesDir\ntfszapfree.zip"
-    Write-Log "Downloading ntfszapfree..."
-
-    $ZapFreeUrl = "https://github.com/felfert/ntfszapfree/releases/latest/download/ntfszapfree.zip"
-    Execute-Retry {
-        (New-Object System.Net.WebClient).DownloadFile($ZapFreeUrl, $ZapFreeZipPath)
-    }
-    Expand-Archive -LiteralPath $ZapFreeZipPath -DestinationPath $resourcesDir -Force
-    Remove-Item -Force $ZapFreeZipPath
-    if ($osArch.equals("amd64")) {
-        Remove-Item -Force $ZapFree32Path
-    } else {
-        Move-Item -Force -Path $ZapFree32Path -Destination $ZapFreePath
-    }
-}
-
 function Generate-ConfigFile {
     Param(
         [Parameter(Mandatory=$true)]
@@ -1166,9 +1141,6 @@ function New-WindowsCloudImage {
                 Set-WindowsWallpaper -WinDrive $winImagePath -WallpaperPath $windowsImageConfig.wallpaper_path `
                     -WallpaperSolidColor $windowsImageConfig.wallpaper_solid_color
             }
-            if ($windowsImageConfig.zero_unused_volume_sectors) {
-                Download-ZapFree $resourcesDir ([string]$image.ImageArchitecture)
-            }
 
             Apply-Image -winImagePath $winImagePath -wimFilePath $windowsImageConfig.wim_file_path `
                 -imageIndex $image.ImageIndex
@@ -1316,9 +1288,6 @@ function New-WindowsFromGoldenImage {
                 -WallpaperSolidColor $windowsImageConfig.wallpaper_solid_color
         } else {
             Reset-WindowsWallpaper -WinDrive $driveLetterGold
-        }
-        if ($windowsImageConfig.zero_unused_volume_sectors) {
-            Download-ZapFree $resourcesDir $imageInfo.imageArchitecture
         }
         Dismount-VHD -Path $windowsImageConfig.gold_image_path | Out-Null
 

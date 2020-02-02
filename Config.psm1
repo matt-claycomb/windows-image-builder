@@ -109,10 +109,6 @@ function Get-AvailableConfigOptions {
                            the script will throw an error."},
         @{"Name" = "disable_first_logon_animation"; "DefaultValue" = $false; "AsBoolean" = $true;
           "Description" = "If set, the animation displayed during the first login on Windows Client versions will be disabled."},
-        @{"Name" = "zero_unused_volume_sectors"; "DefaultValue" = $false; "AsBoolean" = $true;
-          "Description" = "If set to true, during final cleanup, https://github.com/felfert/ntfszapfree will be used to zero unused space.
-                           This helps qemu-img to minimize image size. In order to benefit from this, an additional invocation
-                           of qemu-img convert must be performed after the initial run of the image has shutdown."},
         @{"Name" = "extra_packages";
           "Description" = "A comma separated list of extra packages (referenced by filepath)
                            to slipstream into the underlying image.

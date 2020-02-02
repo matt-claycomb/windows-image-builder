@@ -34,17 +34,6 @@ function Set-PersistDrivers {
     Write-Log "Drivers" "PersistDrivers was set to ${Persist} in the unattend.xml"
 }
 
-function Optimize-SparseImage {
-    $zapfree = "$resourcesDir\zapfree.exe"
-    if ( Test-Path $zapfree ) {
-        Write-Host "Optimizing for sparse image..."
-        & $zapfree -z $ENV:SystemDrive
-        Write-Log "ZapFree" "Image was zeroed successfully"
-    } else {
-        Write-Debug "No zapfree. Image not optimized."
-    }
-}
-
 function Clean-UpdateResources {
     $HOST.UI.RawUI.WindowTitle = "Running update resources cleanup"
     # We're done, disable AutoLogon
@@ -491,7 +480,6 @@ try {
     Set-PersistDrivers -Path $unattendedXmlPath -Persist:$persistDrivers
 
     Run-CustomScript "RunBeforeSysprep.ps1"
-    Optimize-SparseImage
     & "$ENV:SystemRoot\System32\Sysprep\Sysprep.exe" `/generalize `/oobe `/shutdown `/unattend:"$unattendedXmlPath"
     Write-Log "Sysprep" "Sysprep initiated successfully"
     Run-CustomScript "RunAfterSysprep.ps1"
