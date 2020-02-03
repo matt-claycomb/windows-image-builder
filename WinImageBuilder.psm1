@@ -1080,6 +1080,12 @@ function New-WindowsCloudImage {
                 Set-WindowsWallpaper -WinDrive $winImagePath -WallpaperPath $windowsImageConfig.wallpaper_path `
                     -WallpaperSolidColor $windowsImageConfig.wallpaper_solid_color
             }
+			
+			if ($windowsImageConfig.startlayout_path) {
+				Write-Log "Importing start layout..."
+				Import-StartLayout -LayoutPath $windowsImageConfig.startlayout_path -MountPath $winImagePath
+				Write-Log "Start layout imported into image."
+			}
 
             Apply-Image -winImagePath $winImagePath -wimFilePath $windowsImageConfig.wim_file_path `
                 -imageIndex $image.ImageIndex
@@ -1225,6 +1231,13 @@ function New-WindowsFromGoldenImage {
         } else {
             Reset-WindowsWallpaper -WinDrive $driveLetterGold
         }
+			
+		if ($windowsImageConfig.startlayout_path) {
+            Write-Log "Importing start layout..."
+			Import-StartLayout -LayoutPath $windowsImageConfig.startlayout_path -MountPath $winImagePath
+            Write-Log "Start layout imported into image."
+		}
+
         Dismount-VHD -Path $windowsImageConfig.gold_image_path | Out-Null
 
         if ($windowsImageConfig.run_sysprep) {

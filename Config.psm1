@@ -94,6 +94,8 @@ function Get-AvailableConfigOptions {
           "Description" = "In case the hardware on which the image is generated will also be the hardware on
                            which the image will be deployed this can be set to true, otherwise the spawned
                            instance is prone to BSOD."},
+        @{"Name" = "startlayout_path";
+          "Description" = "If set, it will replace the system default start menu and taskbar layouts."},
         @{"Name" = "enable_custom_wallpaper"; "DefaultValue" = $true; "AsBoolean" = $true;
           "Description" = "If set to true, a custom wallpaper will be set according to the values of configuration options
                            wallpaper_path and wallpaper_solid_color"},
