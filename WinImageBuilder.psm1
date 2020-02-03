@@ -926,12 +926,6 @@ function New-WindowsOnlineImage {
     )
     $windowsImageConfig = Get-WindowsImageConfig -ConfigFilePath $ConfigFilePath
 
-    if ($windowsImageConfig.gold_image) {
-        if  (![System.IO.Path]::GetExtension($windowsImageConfig.image_path) -in @(".vhd",".vhdx")) {
-            throw "A golden image file should have a vhd(x) extension/disk format."
-        }
-    }
-
     Write-Log "Windows online image generation started."
     Is-Administrator
     if (!$windowsImageConfig.run_sysprep -and !$windowsImageConfig.force) {
