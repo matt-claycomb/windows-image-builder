@@ -80,8 +80,10 @@ function Get-AvailableConfigOptions {
         @{"Name" = "purge_updates"; "GroupName" = "updates"; "DefaultValue" = $false; "AsBoolean" = $true;
           "Description" = "If set to true, will run DISM with /resetbase option. This will reduce the size of
                            WinSXS folder, but after that Windows updates cannot be uninstalled."},
-        @{"Name" = "unattend_xml_path"; "GroupName" = "sysprep"; "DefaultValue" = "UnattendTemplate.xml";
-          "Description" = "The path to the Unattend XML template file used for sysprep."},
+        @{"Name" = "initial_unattend_xml_path"; "GroupName" = "sysprep"; "DefaultValue" = "UnattendTemplate.xml";
+          "Description" = "The path to the Unattend XML template file used for initial boot."},
+        @{"Name" = "generalize_unattend_xml_path"; "GroupName" = "sysprep";
+          "Description" = "The path to the Unattend XML template file used for sysprep generalize and next boot."},
         @{"Name" = "persist_drivers_install"; "GroupName" = "sysprep"; "DefaultValue" = $true; "AsBoolean" = $true;
           "Description" = "In case the hardware on which the image is generated will also be the hardware on
                            which the image will be deployed this can be set to true, otherwise the spawned
