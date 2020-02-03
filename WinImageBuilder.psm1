@@ -652,46 +652,6 @@ function Wait-ForVMShutdown {
     }
 }
 
-function Run-Sysprep {
-    Param(
-        [Parameter(Mandatory=$true)]
-        [string]$Name,
-        [Parameter(Mandatory=$true)]
-        [string]$VhdPath,
-        [Parameter(Mandatory=$true)]
-        [Uint64]$Memory,
-        [Parameter(Mandatory=$true)]
-        [int]$CpuCores,
-        [Parameter(Mandatory=$true)]
-        [string]$VMSwitch,
-        [switch]$DisableSecureBoot
-    )
-
-    Write-Log "Creating VM $Name attached to $VMSwitch"
-    New-VM -Name $Name -MemoryStartupBytes $Memory -SwitchName $VMSwitch `
-        -VhdPath $VhdPath -Generation 2 | Out-Null
-    Set-VMProcessor -VMname $Name -count $CpuCores | Out-Null
-
-    Set-VMMemory -VMname $Name -DynamicMemoryEnabled:$false | Out-Null
-    $vmAutomaticCheckpointsEnabledWrapper = (Get-VM -Name $Name) | Select-Object 'AutomaticCheckpointsEnabled' `
-        -ErrorAction SilentlyContinue
-    $vmAutomaticCheckpointsEnabled = $false
-    if ($vmAutomaticCheckpointsEnabledWrapper) {
-       $vmAutomaticCheckpointsEnabled = $vmAutomaticCheckpointsEnabledWrapper.AutomaticCheckpointsEnabled
-    }
-    if ($vmAutomaticCheckpointsEnabled) {
-       Set-VM -VMName $Name -AutomaticCheckpointsEnabled:$false
-    }
-    if ($DisableSecureBoot) {
-         Set-VMFirmware -VMName $Name -EnableSecureBoot Off
-    }
-    Write-Log "Starting $Name"
-    Start-VM $Name | Out-Null
-    Start-Sleep 5
-    Wait-ForVMShutdown $Name
-    Remove-VM $Name -Confirm:$false -Force
-}
-
 function Convert-KvpData($xmlData) {
    $data = @{}
 
@@ -906,7 +866,7 @@ function Clean-WindowsUpdates {
     }
 }
 
-function New-WindowsOnlineImage {
+function New-BaseWindowsImage {
     <#
     .SYNOPSIS
      This function generates a Windows image using Hyper-V  to instantiate the image in
@@ -914,9 +874,8 @@ function New-WindowsOnlineImage {
     .DESCRIPTION
      This command requires Hyper-V to be enabled, a VMSwitch to be configured for external
      network connectivity if the updates are to be installed, which is highly recommended.
-     This command uses internally the New-WindowsCloudImage to generate the base image and
-     start a Hyper-V instance using the base image. After the Hyper-V instance shuts down,
-     the resulting VHDX is shrunk to a minimum size and converted to the required format.
+	 After the Hyper-V instance shuts down, the resulting VHDX is mounted and captured as
+	 a WIM image for deployment.
 
      The list of parameters can be found in the Config.psm1 file.
     #>
@@ -928,59 +887,160 @@ function New-WindowsOnlineImage {
 
     Write-Log "Windows online image generation started."
     Is-Administrator
-    if (!$windowsImageConfig.run_sysprep -and !$windowsImageConfig.force) {
-        throw "You chose not to run sysprep.
-            This will build an unusable Windows image.
-            If you really want to continue use the ``force = true`` config option."
-    }
 
     Check-Prerequisites
+	
     if ($windowsImageConfig.external_switch) {
-        $switch = Get-VMSwitch -Name $windowsImageConfig.external_switch -ErrorAction SilentlyContinue
-        if (!$switch) {
-            throw "Selected vmswitch {0} does not exist" -f $windowsImageConfig.external_switch
+        $VMSwitch = Get-VMSwitch -Name $windowsImageConfig.external_switch -ErrorAction SilentlyContinue
+        if (!$VMSwitch) {
+            throw ("Selected vmswitch {0} does not exist" -f $windowsImageConfig.external_switch)
         }
-        if ($switch.SwitchType -ne "External" -and !$windowsImageConfig.force) {
-            throw ("Selected switch {0} is not an external switch. If you really want to continue use the ``force = true`` flag." -f $windowsImageConfig.external_switch)
+        if ($VMSwitch.SwitchType -ne "External") {
+            throw ("Selected switch {0} is not an external switch." -f $windowsImageConfig.external_switch)
         }
     }
+	else {
+		$VMSwitch = Get-VMSwitch -Name "Default Switch" -ErrorAction SilentlyContinue
+		
+        if (!$VMSwitch) {
+            throw "Default vmswitch does not exist"
+        }
+	}
+	
     if ([int]$windowsImageConfig.cpu_count -gt [int](Get-TotalLogicalProcessors)) {
         throw "CpuCores larger then available (logical) CPU cores."
     }
+	
+	$imagePath = $windowsImageConfig.image_path
 
-    if (Test-Path $windowsImageConfig.image_path) {
+    if (Test-Path $imagePath) {
         Write-Log "Found already existing image file. Removing it..." -ForegroundColor Yellow
-        Remove-Item -Force $windowsImageConfig.image_path
+        Remove-Item -Force $imagePath
         Write-Log "Already existent image file has been removed." -ForegroundColor Yellow
     }
 
-    try {
-        $barePath = Get-PathWithoutExtension $windowsImageConfig.image_path 3
-        $virtualDiskPath = $barePath + ".vhdx"
-        $imagePath = $virtualDiskPath
+    try {		
+		try {
+			$mountedWindowsIso = $null
+			if ($windowsImageConfig.wim_file_path.EndsWith('.iso')) {
+				$windowsImageConfig.wim_file_path = get-command $windowsImageConfig.wim_file_path -erroraction ignore `
+					| Select-Object -ExpandProperty Source
+				if($windowsImageConfig.wim_file_path -eq $null){
+					throw ("Unable to find source iso. Either specify the full path or add the folder containing the iso to the path variable")
+				}
+				$mountedWindowsIso = [WIMInterop.VirtualDisk]::OpenVirtualDisk($windowsImageConfig.wim_file_path)
+				$mountedWindowsIso.AttachVirtualDisk()
+				$devicePath = $mountedWindowsIso.GetVirtualDiskPhysicalPath()
+				$basePath = ((Get-DiskImage -DevicePath $devicePath `
+						| Get-Volume).DriveLetter) + ":"
+				$windowsImageConfig.wim_file_path = "$($basePath)\Sources\install.wim"
+			}
+			
+			Set-DotNetCWD
+			
+			$image = Get-WimFileImagesInfo -WimFilePath $windowsImageConfig.wim_file_path | `
+				Where-Object { $_.ImageName -eq $windowsImageConfig.image_name }
+			if (!$image) {
+				throw ("Image {0} not found in WIM file {1}" -f @($windowsImageConfig.image_name, $windowsImageConfig.wim_file_path))
+			}
+			Check-DismVersionForImage $image
+			
+			try {
+				$drives = Create-ImageVirtualDisk -VhdPath $imagePath -Size $windowsImageConfig.disk_size
+				$winImagePath = "$($drives[1])\"
+				$resourcesDir = "${winImagePath}UnattendResources"
+				$outUnattendXmlPath = "${winImagePath}Unattend.xml"
+				$xmlunattendPath = Join-Path $scriptPath $windowsImageConfig['unattend_xml_path']
+				$xmlParams = @{'InUnattendXmlPath' = $xmlunattendPath;
+							   'OutUnattendXmlPath' = $outUnattendXmlPath;
+							   'Image' = $image;
+							   'AdministratorPassword' = $windowsImageConfig.administrator_password;
+				}
+				if ($windowsImageConfig.product_key) {
+					$productKey = $windowsImageConfig.product_key
+					if ($productKey -eq "default_kms_key") {
+						$productKey = Map-KMSProductKey $windowsImageConfig.image_name $image.ImageVersion
+					}
+					if ($productKey) {
+						$xmlParams.Add('productKey', $productKey)
+					}
+				}
+				Generate-UnattendXml @xmlParams
+				Copy-UnattendResources -resourcesDir $resourcesDir -imageInstallationType $image.ImageInstallationType
+				Copy-CustomResources -ResourcesDir $resourcesDir -CustomResources $windowsImageConfig.custom_resources_path `
+									 -CustomScripts $windowsImageConfig.custom_scripts_path
+				Copy-Item $ConfigFilePath "$resourcesDir\config.ini"
+				if ($windowsImageConfig.enable_custom_wallpaper) {
+					Set-WindowsWallpaper -WinDrive $winImagePath -WallpaperPath $windowsImageConfig.wallpaper_path `
+						-WallpaperSolidColor $windowsImageConfig.wallpaper_solid_color
+				}
 
-        # We need different config files for New-WindowsCloudImage and New-WindowsOnlineImage
-        $offlineConfigFilePath = $ConfigFilePath + ".offline"
-        Copy-Item -Path $ConfigFilePath -Destination $offlineConfigFilePath
-        Set-IniFileValue -Path $offlineConfigFilePath -Section 'DEFAULT' -Key 'image_path' `
-                -Value $virtualDiskPath
-        New-WindowsCloudImage -ConfigFilePath $offlineConfigFilePath
+				Apply-Image -winImagePath $winImagePath -wimFilePath $windowsImageConfig.wim_file_path `
+					-imageIndex $image.ImageIndex
+				
+				if ($windowsImageConfig.startlayout_path) {
+					Write-Log "Importing start layout..."
+					Import-StartLayout -LayoutPath $windowsImageConfig.startlayout_path -MountPath $winImagePath
+					Write-Log "Start layout imported into image."
+				}
+					
+				Create-BCDBootConfig -systemDrive $drives[0] -windowsDrive $drives[1] -image $image
+				Check-EnablePowerShellInImage $winImagePath $image
 
-        if ($windowsImageConfig.run_sysprep) {
-            $Name = "WindowsOnlineImage-Sysprep" + (Get-Random)
-            Run-Sysprep -Name $Name -Memory $windowsImageConfig.ram_size -vhdPath $virtualDiskPath `
-                -VMSwitch $switch.Name -CpuCores $windowsImageConfig.cpu_count `
-                -DisableSecureBoot:$windowsImageConfig.disable_secure_boot
-        }
+				if ($windowsImageConfig.drivers_path -and (Test-Path $windowsImageConfig.drivers_path)) {
+					Add-DriversToImage $winImagePath $windowsImageConfig.drivers_path
+				}
+				if ($windowsImageConfig.extra_features) {
+					Enable-FeaturesInImage $winImagePath $windowsImageConfig.extra_features
+				}
+				if ($windowsImageConfig.extra_packages) {
+					foreach ($package in $windowsImageConfig.extra_packages.split(",")) {
+						Add-PackageToImage $winImagePath $package -ignoreErrors $windowsImageConfig.extra_packages_ignore_errors
+					}
+				}
+				if ($windowsImageConfig.extra_capabilities) {
+					Add-CapabilitiesToImage $winImagePath $windowsImageConfig.extra_capabilities
+				}
+				if ($windowsImageConfig.clean_updates_offline) {
+					Clean-WindowsUpdates $winImagePath -PurgeUpdates $windowsImageConfig.purge_updates
+				}
 
-        if ($windowsImageConfig.shrink_image_to_minimum_size -eq $true) {
-            Resize-VHDImage $virtualDiskPath
-        }
-        Optimize-VHD $VirtualDiskPath -Mode Full
-
-        if ($imagePath -ne $windowsImageConfig['image_path']) {
-            Move-Item -Force $imagePath $windowsImageConfig['image_path']
-        }
+				Optimize-Volume -DriveLetter $drives[1].replace(":","") -Defrag -ReTrim -SlabConsolidate
+			} finally {
+				if (Test-Path $imagePath) {
+					Detach-VirtualDisk $imagePath
+				}
+			}		
+		}
+		finally {
+			if($mountedWindowsIso){
+				$mountedWindowsIso.DetachVirtualDisk()
+			}
+		}
+			
+		$VMName = "WindowsOnlineImage-Sysprep" + (Get-Random)	
+		
+		Write-Log "Creating VM $VMName attached to $VMSwitch"
+		New-VM -Name $VMName -MemoryStartupBytes $windowsImageConfig.ram_size -SwitchName $VMSwitch.Name `
+			-VhdPath $imagePath -Generation 2 | Out-Null
+		Set-VMProcessor -VMname $VMName -count $windowsImageConfig.cpu_count | Out-Null
+		
+		Set-VMMemory -VMname $VMName -DynamicMemoryEnabled:$false | Out-Null
+		$vmAutomaticCheckpointsEnabledWrapper = (Get-VM -Name $VMName) | Select-Object 'AutomaticCheckpointsEnabled' `
+			-ErrorAction SilentlyContinue
+		$vmAutomaticCheckpointsEnabled = $false
+		if ($vmAutomaticCheckpointsEnabledWrapper) {
+		   $vmAutomaticCheckpointsEnabled = $vmAutomaticCheckpointsEnabledWrapper.AutomaticCheckpointsEnabled
+		}
+		if ($vmAutomaticCheckpointsEnabled) {
+		   Set-VM -VMName $VMName -AutomaticCheckpointsEnabled:$false
+		}
+		Write-Log "Starting $VMName"
+		Start-VM $VMName | Out-Null
+		Start-Sleep 5
+		Wait-ForVMShutdown $VMName
+		Remove-VM $VMName -Confirm:$false -Force
+			
     } catch {
         Write-Log $_
         if ($windowsImageConfig.image_path -and (Test-Path $windowsImageConfig.image_path)) {
@@ -988,296 +1048,8 @@ function New-WindowsOnlineImage {
         }
         Throw
     }
-    Write-Log "Windows online image generation finished. Image path: $($windowsImageConfig.image_path)"
+	
+    Write-Log "Windows image generation finished. Image path: $($windowsImageConfig.image_path)"
 }
 
-function New-WindowsCloudImage {
-    <#
-    .SYNOPSIS
-     This function creates a Windows Image, starting from an ISO file, without the need
-     of Hyper-V to be enabled. The image, to become ready for cloud usage, needs to be
-     started on a hypervisor and it will automatically shut down when it finishes all the
-     operations needed to become cloud ready: updates and sysprep.
-    .DESCRIPTION
-     This script can generate a Windows Image in one of the following formats: VHD,
-     VHDX, QCow2, VMDK or RAW. It takes the Windows flavor indicated by the ImageName
-     from the WIM file and based on the parameters given, it will generate an image.
-     This function does not require Hyper-V to be enabled, but the generated image
-     is not ready to be deployed, as it needs to be started manually on another hypervisor.
-     The image is ready to be used when it shuts down.
-
-     The list of parameters can be found in the Config.psm1 file.
-    #>
-    param
-    (
-        [parameter(Mandatory=$true, ValueFromPipeline=$true)]
-        [string]$ConfigFilePath
-    )
-    Write-Log "Cloud image generation started."
-    try {
-        $windowsImageConfig = Get-WindowsImageConfig -ConfigFilePath $ConfigFilePath
-        $mountedWindowsIso = $null
-        if ($windowsImageConfig.wim_file_path.EndsWith('.iso')) {
-            $windowsImageConfig.wim_file_path = get-command $windowsImageConfig.wim_file_path -erroraction ignore `
-                | Select-Object -ExpandProperty Source
-            if($windowsImageConfig.wim_file_path -eq $null){
-                throw ("Unable to find source iso. Either specify the full path or add the folder containing the iso to the path variable")
-            }
-            $mountedWindowsIso = [WIMInterop.VirtualDisk]::OpenVirtualDisk($windowsImageConfig.wim_file_path)
-            $mountedWindowsIso.AttachVirtualDisk()
-            $devicePath = $mountedWindowsIso.GetVirtualDiskPhysicalPath()
-            $basePath = ((Get-DiskImage -DevicePath $devicePath `
-                    | Get-Volume).DriveLetter) + ":"
-            $windowsImageConfig.wim_file_path = "$($basePath)\Sources\install.wim"
-        }
-        
-        Set-DotNetCWD
-        Is-Administrator
-        $image = Get-WimFileImagesInfo -WimFilePath $windowsImageConfig.wim_file_path | `
-            Where-Object { $_.ImageName -eq $windowsImageConfig.image_name }
-        if (!$image) {
-            throw ("Image {0} not found in WIM file {1}" -f @($windowsImageConfig.image_name, $windowsImageConfig.wim_file_path))
-        }
-        Check-DismVersionForImage $image
-
-        if (Test-Path $windowsImageConfig.image_path) {
-            Write-Log "Found already existing image file. Removing it..." -ForegroundColor Yellow
-            Remove-Item -Force $windowsImageConfig.image_path
-            Write-Log "Already existent image file has been removed." -ForegroundColor Yellow
-        }
-
-        $vhdPath = "{0}.vhdx" -f (Get-PathWithoutExtension $windowsImageConfig.image_path)
-        if (Test-Path $vhdPath) {
-            Remove-Item -Force $vhdPath
-        }
-
-        try {
-            $drives = Create-ImageVirtualDisk -VhdPath $vhdPath -Size $windowsImageConfig.disk_size
-            $winImagePath = "$($drives[1])\"
-            $resourcesDir = "${winImagePath}UnattendResources"
-            $outUnattendXmlPath = "${winImagePath}Unattend.xml"
-            $xmlunattendPath = Join-Path $scriptPath $windowsImageConfig['unattend_xml_path']
-            $xmlParams = @{'InUnattendXmlPath' = $xmlunattendPath;
-                           'OutUnattendXmlPath' = $outUnattendXmlPath;
-                           'Image' = $image;
-                           'AdministratorPassword' = $windowsImageConfig.administrator_password;
-            }
-            if ($windowsImageConfig.product_key) {
-                $productKey = $windowsImageConfig.product_key
-                if ($productKey -eq "default_kms_key") {
-                    $productKey = Map-KMSProductKey $windowsImageConfig.image_name $image.ImageVersion
-                }
-                if ($productKey) {
-                    $xmlParams.Add('productKey', $productKey)
-                }
-            }
-            Generate-UnattendXml @xmlParams
-            Copy-UnattendResources -resourcesDir $resourcesDir -imageInstallationType $image.ImageInstallationType
-            Copy-CustomResources -ResourcesDir $resourcesDir -CustomResources $windowsImageConfig.custom_resources_path `
-                                 -CustomScripts $windowsImageConfig.custom_scripts_path
-            Copy-Item $ConfigFilePath "$resourcesDir\config.ini"
-            if ($windowsImageConfig.enable_custom_wallpaper) {
-                Set-WindowsWallpaper -WinDrive $winImagePath -WallpaperPath $windowsImageConfig.wallpaper_path `
-                    -WallpaperSolidColor $windowsImageConfig.wallpaper_solid_color
-            }
-			
-			if ($windowsImageConfig.startlayout_path) {
-				Write-Log "Importing start layout..."
-				Import-StartLayout -LayoutPath $windowsImageConfig.startlayout_path -MountPath $winImagePath
-				Write-Log "Start layout imported into image."
-			}
-
-            Apply-Image -winImagePath $winImagePath -wimFilePath $windowsImageConfig.wim_file_path `
-                -imageIndex $image.ImageIndex
-            Create-BCDBootConfig -systemDrive $drives[0] -windowsDrive $drives[1] -image $image
-            Check-EnablePowerShellInImage $winImagePath $image
-
-            if ($windowsImageConfig.drivers_path -and (Test-Path $windowsImageConfig.drivers_path)) {
-                Add-DriversToImage $winImagePath $windowsImageConfig.drivers_path
-            }
-            if ($windowsImageConfig.extra_features) {
-                Enable-FeaturesInImage $winImagePath $windowsImageConfig.extra_features
-            }
-            if ($windowsImageConfig.extra_packages) {
-                foreach ($package in $windowsImageConfig.extra_packages.split(",")) {
-                    Add-PackageToImage $winImagePath $package -ignoreErrors $windowsImageConfig.extra_packages_ignore_errors
-                }
-            }
-            if ($windowsImageConfig.extra_capabilities) {
-                Add-CapabilitiesToImage $winImagePath $windowsImageConfig.extra_capabilities
-            }
-            if ($windowsImageConfig.clean_updates_offline) {
-                Clean-WindowsUpdates $winImagePath -PurgeUpdates $windowsImageConfig.purge_updates
-            }
-
-            Optimize-Volume -DriveLetter $drives[1].replace(":","") -Defrag -ReTrim -SlabConsolidate
-        } finally {
-            if (Test-Path $vhdPath) {
-                Detach-VirtualDisk $vhdPath
-            }
-        }
-
-        $barePath = Get-PathWithoutExtension $windowsImageConfig.image_path 3
-        $imagePath = $barePath + ".VHDX"
-        if ($vhdPath -ne $imagePath) {
-            Move-Item -Force $vhdPath $imagePath
-        }
-        if ($imagePath -ne $windowsImageConfig['image_path']) {
-            Move-Item -Force $imagePath $windowsImageConfig['image_path']
-        }
-        Write-Log "Cloud image generation finished. Image path: $($windowsImageConfig.image_path)"
-    } finally {
-        if($mountedWindowsIso){
-            $mountedWindowsIso.DetachVirtualDisk()
-        }
-    }
-}
-
-function New-WindowsFromGoldenImage {
-    <#
-    .SYNOPSIS
-     This function creates a functional Windows Image, starting from an already
-     generated golden image. It will be started on Hyper-V and it will automatically
-     shut down when it finishes all the operations needed to become cloud ready:
-     updates and sysprep.
-    .DESCRIPTION
-     This function can generated a cloud ready Windows image starting from a golden
-     image. The resulting image can have the following formats: VHD,VHDX, QCow2,
-     VMDK or RAW.
-
-     This command requires Hyper-V to be enabled, a VMSwitch to be configured for external
-     network connectivity if the updates are to be installed, which is highly recommended.
-     This command uses internally the New-WindowsOnlineImage to start a Hyper-V instance using
-     the golden image provided as a parameter. After the Hyper-V instance shuts down,
-     the resulting VHDX is shrunk to a minimum size and converted to the required format.
-     #>
-    [CmdletBinding()]
-    Param(
-        [parameter(Mandatory=$true, ValueFromPipeline=$true)]
-        [string]$ConfigFilePath
-    )
-
-    Write-Log "Cloud image from golden image generation started."
-    $windowsImageConfig = Get-WindowsImageConfig -ConfigFilePath $ConfigFilePath
-    Is-Administrator
-    if (!$windowsImageConfig.run_sysprep -and !$windowsImageConfig.force) {
-        throw "You chose not to run sysprep.
-            This will build an unusable Windows image.
-            If you really want to continue use the ``force = true`` config option."
-    }
-
-    Check-Prerequisites
-    if ($windowsImageConfig.external_switch) {
-        $switch = Get-VMSwitch -Name $windowsImageConfig.external_switch -ErrorAction SilentlyContinue
-        if (!$switch) {
-            throw "Selected vmswitch {0} does not exist" -f $windowsImageConfig.external_switch
-        }
-        if ($switch.SwitchType -ne "External" -and !$windowsImageConfig.force) {
-            throw ("Selected switch {0} is not an external switch. If you really want to continue use the ``force = true`` flag." -f $windowsImageConfig.external_switch)
-        }
-    }
-    if ([int]$windowsImageConfig.cpu_count -gt [int](Get-TotalLogicalProcessors)) {
-        throw "CpuCores larger than available (logical) CPU cores."
-    }
-
-    try {
-        Execute-Retry {
-            Resize-VHD -Path $windowsImageConfig.gold_image_path -SizeBytes $windowsImageConfig.disk_size
-            Set-VHD -Path $windowsImageConfig.gold_image_path -ResetDiskIdentifier -Force
-        } | Out-Null
-
-        Mount-VHD -Path $windowsImageConfig.gold_image_path -Passthru | Out-Null
-        $driveNumber = Execute-Retry {
-            Get-PSDrive | Out-Null
-            $driveNumber = (Get-DiskImage -ImagePath $windowsImageConfig.gold_image_path | Get-Disk).Number
-            if ($driveNumber -eq $null) {
-                throw "Could not retrieve drive number for mounted vhd"
-            }
-            return $driveNumber
-        }
-        $partition = Execute-Retry {
-            Get-PSDrive | Out-Null
-            Set-Disk -Number $driveNumber -IsOffline $False
-            $partition = Get-Partition -DiskNumber $driveNumber | Where-Object {@("Basic", "IFS") -contains $_.Type}
-            if (!$partition -or !$partition.DriveLetter) {
-                throw "Partition not found for mounted $($windowsImageConfig.gold_image_path)"
-            }
-            return $partition
-        }
-        $driveLetterGold = $partition.DriveLetter + ":"
-        Write-Log "The mount point for the gold image is: ${driveLetterGold}"
-        try {
-            $maxPartitionSize = (Get-PartitionSupportedSize -DiskNumber $driveNumber -PartitionNumber `
-                                     $partition.PartitionNumber).SizeMax
-            Resize-Partition -DiskNumber $driveNumber -PartitionNumber $partition.PartitionNumber `
-                -Size $maxPartitionSize -ErrorAction SilentlyContinue
-        } catch {
-            Write-Log "Partition has already the desired size"
-        }
-        $imageInfo = Get-ImageInformation $driveLetterGold -ImageName $windowsImageConfig.image_name
-
-        if ($windowsImageConfig.drivers_path -and (Test-Path $windowsImageConfig.drivers_path)) {
-            Add-DriversToImage $driveLetterGold $windowsImageConfig.drivers_path
-        }
-
-        $resourcesDir = Join-Path -Path $driveLetterGold -ChildPath "UnattendResources"
-        Copy-UnattendResources -resourcesDir $resourcesDir -imageInstallationType $windowsImageConfig.image_name
-        Copy-CustomResources -ResourcesDir $resourcesDir -CustomResources $windowsImageConfig.custom_resources_path `
-                             -CustomScripts $windowsImageConfig.custom_scripts_path
-        Copy-Item $ConfigFilePath "$resourcesDir\config.ini"
-        if ($windowsImageConfig.enable_custom_wallpaper) {
-            Set-WindowsWallpaper -WinDrive $driveLetterGold -WallpaperPath $windowsImageConfig.wallpaper_path `
-                -WallpaperSolidColor $windowsImageConfig.wallpaper_solid_color
-        } else {
-            Reset-WindowsWallpaper -WinDrive $driveLetterGold
-        }
-			
-		if ($windowsImageConfig.startlayout_path) {
-            Write-Log "Importing start layout..."
-			Import-StartLayout -LayoutPath $windowsImageConfig.startlayout_path -MountPath $winImagePath
-            Write-Log "Start layout imported into image."
-		}
-
-        Dismount-VHD -Path $windowsImageConfig.gold_image_path | Out-Null
-
-        if ($windowsImageConfig.run_sysprep) {
-
-            $Name = "WindowsGoldImage-Sysprep" + (Get-Random)
-            Run-Sysprep -Name $Name -Memory $windowsImageConfig.ram_size -vhdPath $windowsImageConfig.gold_image_path `
-                -VMSwitch $switch.Name -CpuCores $windowsImageConfig.cpu_count `
-                -DisableSecureBoot:$windowsImageConfig.disable_secure_boot
-        }
-
-        if ($windowsImageConfig.shrink_image_to_minimum_size -eq $true) {
-            Resize-VHDImage $windowsImageConfig.gold_image_path
-        }
-        Optimize-VHD $windowsImageConfig.gold_image_path -Mode Full
-
-        $barePath = Get-PathWithoutExtension $windowsImageConfig.image_path 3
-        $imagePath = $windowsImageConfig.gold_image_path
-
-		$imagePathVhdx = $barePath + ".vhdx"
-		if ($imagePath -ne $imagePathVhdx) {
-			Move-Item -Force $imagePath $imagePathVhdx
-			$imagePath = $imagePathVhdx
-		}
-		
-        if ($imagePath -ne $windowsImageConfig['image_path']) {
-            Move-Item -Force $imagePath $windowsImageConfig['image_path']
-        }
-
-        Write-Log "Cloud image from golden image generation finished. Image path: $($windowsImageConfig.image_path)"
-    } catch {
-        try {
-            Get-VHD $windowsImageConfig.gold_image_path | Dismount-VHD
-            Remove-Item -Force $windowsImageConfig.gold_image_path
-        } catch {
-            Write-Log $_
-        }
-        throw $_
-    }
-}
-
-Export-ModuleMember New-WindowsCloudImage, Get-WimFileImagesInfo, Resize-VHDImage,
-    New-WindowsOnlineImage, New-WindowsFromGoldenImage, Get-WindowsImageConfig,
-    New-WindowsImageConfig
+Export-ModuleMember New-BaseWindowsImage, Get-WindowsImageConfig, New-WindowsImageConfig
