@@ -52,7 +52,7 @@ NestedModules = @("Config.psm1", "UnattendResources\ini.psm1")
 ModuleList = @("Config.psm1", "UnattendResources\ini.psm1")
 
 # Functions to export from this module
-FunctionsToExport = "New-BaseWindowsImage", "Get-WindowsImageConfig", "New-WindowsImageConfig"
+FunctionsToExport = "New-BaseWindowsImage", "Get-WindowsImageConfig", "New-WindowsImageConfig", "Get-WimFileImagesInfo"
 
 AliasesToExport = ""
 }

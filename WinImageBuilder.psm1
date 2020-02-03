@@ -1052,4 +1052,4 @@ function New-BaseWindowsImage {
     Write-Log "Windows image generation finished. Image path: $($windowsImageConfig.image_path)"
 }
 
-Export-ModuleMember New-BaseWindowsImage, Get-WindowsImageConfig, New-WindowsImageConfig
+Export-ModuleMember New-BaseWindowsImage, Get-WindowsImageConfig, New-WindowsImageConfig, Get-WimFileImagesInfo
