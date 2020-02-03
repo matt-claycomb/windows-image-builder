@@ -36,8 +36,12 @@
                     "Windows Server 2019 SERVERDATACENTERCORE": "WMDGN-G9PQG-XVVXX-R3X43-63DFG",
                     "Windows Server 2019 SERVERDATACENTER": "WMDGN-G9PQG-XVVXX-R3X43-63DFG",
                     "Windows Server 2019 SERVERSTANDARDCORE": "N69G4-B89J2-4G8F4-WWYCC-J464C",
-                    "Windows Server 2019 SERVERSTANDARD": "N69G4-B89J2-4G8F4-WWYCC-J464C"
-                }
+                    "Windows Server 2019 SERVERSTANDARD": "N69G4-B89J2-4G8F4-WWYCC-J464C",
+					"Windows Server 2019 SERVERSOLUTION": "WVDHN-86M7X-466P6-VHXV7-YY726"
+                },
+				"18362": {
+					"Windows 10 Pro": "W269N-WFGWX-YVC9B-4J6C9-T83GX"
+				}
             }
         }
     }
