@@ -4,6 +4,8 @@ $configIniPath = "$resourcesDir\config.ini"
 $customScriptsDir = "$resourcesDir\CustomScripts"
 $logFile = "$resourcesDir\image-generation-log.txt"
 
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 function Set-PersistDrivers {
     Param(
     [parameter(Mandatory=$true)]
@@ -267,9 +269,8 @@ function Write-HostLog {
     <#
     .SYNOPSIS
      Uses KVP to communicate to the Hyper-V host the status of the various stages
-     of the imaging generation. This feature works only if the VM where this script
-     runs is spawned on Hyper-V and the 'Data Exchange' (aka Key Value Pair Exchange)
-     is enabled for the instance. On KVM / ESXi / baremetal, this method is NOOP.
+     of the imaging generation. This feature works only if the 'Data Exchange'
+	 (aka Key Value Pair Exchange) is enabled for the instance.
     #>
     Param($Stage = "Default",
           $StageLog
