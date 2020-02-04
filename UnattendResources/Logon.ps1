@@ -478,10 +478,8 @@ try {
     $unattendedXmlPath = "$resourcesDir\Unattend.xml"
     Set-PersistDrivers -Path $unattendedXmlPath -Persist:$persistDrivers
 
-	Copy-Item $unattendedXmlPath "$ENV:SystemRoot\Panther\Unattend.xml"
-
     Run-CustomScript "RunBeforeSysprep.ps1"
-    & "$ENV:SystemRoot\System32\Sysprep\Sysprep.exe" `/generalize `/oobe `/shutdown
+    & "$ENV:SystemRoot\System32\Sysprep\Sysprep.exe" `/generalize `/oobe `/shutdown `/unattend:"$resourcesDir\Unattend.xml"
 
     Write-Log "Sysprep" "Sysprep initiated successfully"
     Run-CustomScript "RunAfterSysprep.ps1"

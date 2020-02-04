@@ -969,10 +969,6 @@ function New-BaseWindowsImage {
 				Copy-UnattendResources -resourcesDir $resourcesDir -imageInstallationType $image.ImageInstallationType
 				Copy-CustomResources -ResourcesDir $resourcesDir -CustomResources $windowsImageConfig.custom_resources_path `
 									 -CustomScripts $windowsImageConfig.custom_scripts_path
-				if ($windowsImageConfig.generalize_unattend_xml_path) {
-					Write-Log "Importing stage 2 unattend xml..."
-					Copy-Item $windowsImageConfig.generalize_unattend_xml_path "$resourcesDir\Unattend.xml"
-				}
 				Copy-Item $ConfigFilePath "$resourcesDir\config.ini"
 				if ($windowsImageConfig.enable_custom_wallpaper) {
 					Set-WindowsWallpaper -WinDrive $winImagePath -WallpaperPath $windowsImageConfig.wallpaper_path `
