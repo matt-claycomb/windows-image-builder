@@ -26,7 +26,7 @@ function Get-AvailableConfigOptions {
           "Description" = "This is the complete name of the Windows version that will be generated.
                            In order to find the possible options, use the Get-WimFileImagesInfo command
                            and look for the Name property."},
-        @{"Name" = "image_path"; "DefaultValue" = "${ENV:TEMP}\win-image.vhdx";
+        @{"Name" = "image_path"; "DefaultValue" = "D:\Sources\install-prepped.wim";
           "Description" = "The destination of the generated image."},
         @{"Name" = "product_key";
           "Description" = "The product key for the selected OS. If the value is default_kms_key and the Windows image is

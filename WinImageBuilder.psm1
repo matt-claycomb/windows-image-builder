@@ -866,6 +866,37 @@ function Clean-WindowsUpdates {
     }
 }
 
+Function New-TemporaryDirectory {
+    $Parent = [System.IO.Path]::GetTempPath()
+    $Name = [System.Guid]::NewGuid().ToString()
+    New-Item -ItemType Directory -Path (Join-Path $Parent $Name)
+}
+
+Function Convert-VHDXToWIM {
+	[CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $True)] [String] $InputPath,
+        [Parameter(Mandatory = $True)] [String] $OutputPath,
+        [Parameter(Mandatory = $True)] [String] $Name,
+        [Parameter(Mandatory = $True)] [String] $Description,
+        [Parameter(Mandatory = $False)] [ValidateSet("none", "fast", "max")] [String] $Compress = "fast"
+    )
+	
+	If (Test-Path $OutputPath) {
+		Remove-Item $OutputPath
+	}
+	
+	$TemporaryDirectory = New-TemporaryDirectory
+	
+	$MountedImage = Mount-WindowsImage -ImagePath $InputPath -Path $TemporaryDirectory -Index 1
+	$OfflineImage = New-WindowsImage -CapturePath $TemporaryDirectory -Name $Name -ImagePath $OutputPath -Description $Description -Verify -CompressionType $Compress
+	$MountedImage | Dismount-WindowsImage -Discard | Out-Null
+	
+	Remove-Item $TemporaryDirectory
+	
+	Return (Get-Item $OfflineImage.ImagePath)
+}
+
 function New-BaseWindowsImage {
     <#
     .SYNOPSIS
@@ -911,7 +942,7 @@ function New-BaseWindowsImage {
         throw "CpuCores larger then available (logical) CPU cores."
     }
 	
-	$imagePath = $windowsImageConfig.image_path
+	$imagePath = "$env:Temp\win-image.vhdx"
 
     if (Test-Path $imagePath) {
         Write-Log "Found already existing image file. Removing it..." -ForegroundColor Yellow
@@ -1040,7 +1071,6 @@ function New-BaseWindowsImage {
 		Start-Sleep 5
 		Wait-ForVMShutdown $VMName
 		Remove-VM $VMName -Confirm:$false -Force
-			
     } catch {
         Write-Log $_
         if ($windowsImageConfig.image_path -and (Test-Path $windowsImageConfig.image_path)) {
@@ -1048,6 +1078,11 @@ function New-BaseWindowsImage {
         }
         Throw
     }
+	
+	Write-Log "Exporting VHDX to WIM"
+	Convert-VHDXToWIM -InputPath $imagePath -OutputPath $windowsImageConfig.image_path -Name $image.ImageName -Description $image.ImageDescription
+	
+	Remove-Item $imagePath
 	
     Write-Log "Windows image generation finished. Image path: $($windowsImageConfig.image_path)"
 }
