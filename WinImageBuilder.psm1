@@ -950,7 +950,7 @@ function New-BaseWindowsImage {
 				$winImagePath = "$($drives[1])\"
 				$resourcesDir = "${winImagePath}UnattendResources"
 				$outUnattendXmlPath = "${winImagePath}Unattend.xml"
-				$xmlunattendPath = Join-Path $scriptPath $windowsImageConfig['initial_unattend_xml_path']
+				$xmlunattendPath = Join-Path $scriptPath $windowsImageConfig['unattend_xml_path']
 				$xmlParams = @{'InUnattendXmlPath' = $xmlunattendPath;
 							   'OutUnattendXmlPath' = $outUnattendXmlPath;
 							   'Image' = $image;

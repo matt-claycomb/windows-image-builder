@@ -477,9 +477,11 @@ try {
     $Host.UI.RawUI.WindowTitle = "Running Sysprep..."
     $unattendedXmlPath = "$resourcesDir\Unattend.xml"
     Set-PersistDrivers -Path $unattendedXmlPath -Persist:$persistDrivers
+	
+	Copy-Item $unattendedXmlPath -Destination "$env:SystemDrive\Image"
 
     Run-CustomScript "RunBeforeSysprep.ps1"
-    & "$ENV:SystemRoot\System32\Sysprep\Sysprep.exe" `/generalize `/oobe `/shutdown `/unattend:"$resourcesDir\Unattend.xml"
+    & "$ENV:SystemRoot\System32\Sysprep\Sysprep.exe" `/generalize `/oobe `/shutdown `/unattend:"$env:SystemDrive\Image\Unattend.xml"
 
     Write-Log "Sysprep" "Sysprep initiated successfully"
     Run-CustomScript "RunAfterSysprep.ps1"
