@@ -1080,7 +1080,7 @@ function New-BaseWindowsImage {
     }
 	
 	Write-Log "Exporting VHDX to WIM"
-	Convert-VHDXToWIM -InputPath $imagePath -OutputPath $windowsImageConfig.image_path -Name $image.ImageName -Description $image.ImageDescription
+	Convert-VHDXToWIM -InputPath $imagePath -OutputPath $windowsImageConfig.image_path -Name $image.ImageName -Description $image.ImageName
 	
 	Remove-Item $imagePath
 	
